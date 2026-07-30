@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-This repository currently contains only planning material (`PROJECT.md`) — no code, tech stack, build tooling, or tests exist yet. There are no commands to build, lint, or run because there is nothing to build, lint, or run. Update this file with real commands as soon as a stack is chosen and scaffolding is added.
+This repository currently contains only planning material (`PROJECT.md`, `CLAUDE.md`) — no Django project has been scaffolded yet, so there are no build/lint/test commands to run. Update this file with real commands (`manage.py runserver`, `manage.py test`, etc.) as soon as scaffolding is added.
+
+## Tech Stack
+
+- **Backend:** Python, Django
+- **Database:** MySQL
+- **Frontend:** Django templates (server-rendered), unless requirements change
 
 ## What This Project Is
 
@@ -18,7 +24,7 @@ Key constraints to keep in mind when making architectural decisions:
 
 ## Before Adding Code
 
-Once a stack is chosen, this file should be updated to include:
-- Install/build/dev/test commands (and how to run a single test)
-- The chosen data storage approach and where the schema/model lives
-- Any non-obvious cross-file architecture (e.g., how the entry form maps to storage, how validation is shared between client/server)
+Once the Django project is scaffolded, this file should be updated to include:
+- Install/build/dev/test commands (e.g. `manage.py runserver`, `manage.py test <app>.<TestCase>.<test_method>` for a single test)
+- MySQL connection setup and where settings/env vars live
+- The app layout (which Django app owns the truck-entry model/views) and any non-obvious cross-file architecture

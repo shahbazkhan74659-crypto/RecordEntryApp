@@ -24,6 +24,10 @@ Each entry in the system represents one truck loading event and captures core de
 - Keep the system **lightweight and single-user focused** — no multi-user accounts, roles, or permissions needed initially.
 - Design the data model to be **extensible**, so new fields can be added later without major rework, as per client requests.
 
+## Tech Stack
+
+See `TECH_STACK.txt`.
+
 ## Out of Scope (for now)
 
 - Multi-user support / authentication for multiple accounts
@@ -34,7 +38,7 @@ Each entry in the system represents one truck loading event and captures core de
 
 - [ ] Finalize definitions for all 5 (or more) fields — including data type, required/optional, validation rules
 - [ ] Confirm any additional fields requested by the client
-- [ ] Define tech stack
+- [x] Define tech stack — Python/Django + MySQL
 - [ ] Design data model / database schema
 - [ ] Build UI (entry form + records list/table view)
 - [ ] Build backend (CRUD operations)

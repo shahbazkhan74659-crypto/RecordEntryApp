@@ -1,0 +1,5 @@
+Tech Stack
+
+- Backend: Python, Django
+- Database: MySQL
+- Frontend: Django templates (server-rendered), unless a future requirement calls for a separate frontend
