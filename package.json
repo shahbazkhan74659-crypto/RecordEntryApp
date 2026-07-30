@@ -1,0 +1,19 @@
+{
+  "name": "entryrecorder-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "JS build pipeline for Entry Recorder (bundles Zod-based client-side validation into Django static files)",
+  "scripts": {
+    "build": "esbuild static/js/src/*.js --bundle --outdir=static/js/dist --minify",
+    "watch": "esbuild static/js/src/*.js --bundle --outdir=static/js/dist --watch",
+    "lint": "eslint static/js/src"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "eslint": "^10.8.0",
+    "globals": "^15.11.0"
+  }
+}

@@ -1,0 +1,40 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Entry Recorder</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body class="login-page">
+    <main class="container">
+        <img src="{% static 'images/logo.png' %}" alt="LoadGate" class="login-logo">
+
+        <div class="card login-card">
+            <h1>Login</h1>
+
+            {% if form.errors %}
+                <p class="form-error">Your username and password didn't match. Please try again.</p>
+            {% endif %}
+
+            <form id="login-form" method="post" novalidate autocomplete="off">
+                {% csrf_token %}
+
+                <label for="id_username">Username</label>
+                <input type="text" id="id_username" name="username" autocomplete="off">
+
+                <label for="id_password">Password</label>
+                <input type="password" id="id_password" name="password" autocomplete="new-password">
+
+                <input type="hidden" name="next" value="{{ next }}">
+
+                <button type="submit" class="btn">Log In</button>
+            </form>
+        </div>
+    </main>
+
+    <script src="{% static 'js/dist/login.js' %}"></script>
+</body>
+</html>

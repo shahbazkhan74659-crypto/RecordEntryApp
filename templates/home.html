@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Entries — Entry Recorder{% endblock %}
+
+{% block content %}
+    <h1>Truck Loading Entries</h1>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>Date</th>
+                    <th>Vehicle Number</th>
+                    <th>Rolls</th>
+                    <th>Workers</th>
+                    <th>Net Kg</th>
+                    <th>Remark</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ entry.date }}</td>
+                    <td>{{ entry.vehicle_number }}</td>
+                    <td>{{ entry.rolls }}</td>
+                    <td>{{ entry.workers }}</td>
+                    <td>{{ entry.net_kg }}</td>
+                    <td>{{ entry.remark }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">No entries yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
