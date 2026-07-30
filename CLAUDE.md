@@ -4,12 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-This repository currently contains only planning material (`PROJECT.md`, `CLAUDE.md`) — no Django project has been scaffolded yet, so there are no build/lint/test commands to run. Update this file with real commands (`manage.py runserver`, `manage.py test`, etc.) as soon as scaffolding is added.
+Django project scaffolded (project name: `entryrecorder`). No apps or models exist yet — just the default project skeleton.
+
+## Commands
+
+- Activate venv: `source venv/Scripts/activate` (bash) or `.\venv\Scripts\Activate.ps1` (PowerShell)
+- Run dev server: `python manage.py runserver`
+- Run migrations: `python manage.py migrate`
+- Run tests: `python manage.py test` (single test: `python manage.py test <app>.tests.<TestCase>.<test_method>`)
+- Install deps: `pip install -r requirements.txt`; after adding a package, refresh with `pip freeze > requirements.txt`
 
 ## Tech Stack
 
 - **Backend:** Python, Django
-- **Database:** MySQL
+- **Database:** SQLite for now (Django's default, `db.sqlite3`, gitignored) — MySQL is planned later but not yet wired up; don't add MySQL connection config until asked
 - **Frontend:** Django templates (server-rendered), unless requirements change
 
 ## What This Project Is
@@ -24,7 +32,7 @@ Key constraints to keep in mind when making architectural decisions:
 
 ## Before Adding Code
 
-Once the Django project is scaffolded, this file should be updated to include:
-- Install/build/dev/test commands (e.g. `manage.py runserver`, `manage.py test <app>.<TestCase>.<test_method>` for a single test)
-- MySQL connection setup and where settings/env vars live
-- The app layout (which Django app owns the truck-entry model/views) and any non-obvious cross-file architecture
+As the first app/model is added, this file should be updated to include:
+- The app layout (which Django app owns the truck-entry model/views)
+- Any non-obvious cross-file architecture (e.g. how the entry form maps to storage, how validation is shared)
+- MySQL connection setup and where settings/env vars live, once that migration happens

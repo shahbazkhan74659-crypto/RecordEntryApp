@@ -1,5 +1,5 @@
 Tech Stack
 
 - Backend: Python, Django
-- Database: MySQL
+- Database: SQLite for now (development) — MySQL planned later, not yet connected
 - Frontend: Django templates (server-rendered), unless a future requirement calls for a separate frontend

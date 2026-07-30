@@ -38,7 +38,8 @@ See `TECH_STACK.txt`.
 
 - [ ] Finalize definitions for all 5 (or more) fields — including data type, required/optional, validation rules
 - [ ] Confirm any additional fields requested by the client
-- [x] Define tech stack — Python/Django + MySQL
+- [x] Define tech stack — Python/Django + MySQL (SQLite for now during development)
+- [x] Scaffold Django project (`entryrecorder`) with virtual environment
 - [ ] Design data model / database schema
 - [ ] Build UI (entry form + records list/table view)
 - [ ] Build backend (CRUD operations)
