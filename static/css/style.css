@@ -130,7 +130,8 @@ body {
     margin-left: 0.75rem;
 }
 
-a.btn-outline {
+a.btn-outline,
+button.btn-outline {
     display: inline-block;
     padding: 0.5rem 1.25rem;
     border-radius: 9999px;
@@ -139,10 +140,13 @@ a.btn-outline {
     color: #000000;
     font-weight: 700;
     font-size: 1rem;
+    font-family: inherit;
     text-decoration: none;
+    cursor: pointer;
 }
 
-a.btn-outline:hover {
+a.btn-outline:hover,
+button.btn-outline:hover {
     background: #000000;
     color: #ffffff;
 }
@@ -249,9 +253,19 @@ h1, h2, h3 {
     margin-right: -60px;
 }
 
+.new-entry-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-left: -60px;
+    margin-right: -60px;
+    margin-top: -0.75rem;
+    margin-bottom: 1rem;
+}
+
 @media (max-width: 768px) {
     .page-header,
-    .table-wrapper {
+    .table-wrapper,
+    .new-entry-bar {
         margin-left: 0;
         margin-right: 0;
     }
@@ -515,7 +529,9 @@ tbody tr.selected:hover {
     color: var(--color-text);
 }
 
-.modal-card input[type="text"] {
+.modal-card input[type="text"],
+.modal-card input[type="password"],
+.modal-card input[type="email"] {
     width: 100%;
     padding: 0.5rem 0.65rem;
     border: 1px solid var(--color-border);
@@ -780,7 +796,7 @@ form label {
 
 .login-logo {
     display: block;
-    max-width: 220px;
+    max-width: 140px;
     width: 100%;
     height: auto;
     margin: 0 auto;
@@ -798,9 +814,26 @@ form label {
     text-align: center;
 }
 
-.login-card .btn {
+.login-card .btn,
+.login-card button.btn-outline {
     display: block;
+    width: 100%;
     margin: 0 auto;
+    text-align: center;
+}
+
+.login-card button.btn-outline {
+    margin-top: 0.75rem;
+}
+
+.login-card button.btn-outline:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.login-card button.btn-outline:disabled:hover {
+    background: #ffffff;
+    color: #000000;
 }
 
 /* Footer */
@@ -810,4 +843,87 @@ form label {
     font-size: 0.85rem;
     padding: 1.25rem 0;
     text-align: center;
+}
+
+/* Account Settings modal */
+#account-settings-modal .modal-card {
+    max-height: 90vh;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+#account-settings-modal .modal-card::-webkit-scrollbar {
+    display: none;
+}
+
+.account-section h4 {
+    margin: 0 0 0.75rem;
+    color: var(--color-text);
+}
+
+.account-section-divider {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 1.5rem 0;
+}
+
+.modal-actions-left {
+    justify-content: flex-start;
+    margin-bottom: 0;
+}
+
+.modal-card .form-note {
+    color: #b91c1c;
+    font-size: 0.85rem;
+    margin: -0.5rem 0 1rem;
+    min-height: 1.1em;
+}
+
+.form-note:empty {
+    display: none;
+}
+
+.modal-card .form-note-success {
+    color: #15803d;
+}
+
+.field-hint {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    margin: -0.75rem 0 0.75rem;
+}
+
+.field-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+}
+
+.field-checkbox input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.email-confirmed-tick {
+    color: #15803d;
+    font-weight: 700;
+}
+
+.modal-btn-link {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0;
+}
+
+.modal-btn-link:hover {
+    color: var(--color-primary-dark);
+    text-decoration: underline;
 }

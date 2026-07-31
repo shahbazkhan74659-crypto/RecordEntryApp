@@ -1,0 +1,98 @@
+<div
+    class="modal-overlay"
+    id="account-settings-modal"
+    data-username="{{ request.user.username }}"
+    data-change-username-url="{% url 'change_username' %}"
+    data-change-password-url="{% url 'change_password' %}"
+    data-request-otp-url="{% url 'change_email_request_otp' %}"
+    data-verify-otp-url="{% url 'change_email_verify' %}"
+    data-revert-email-url="{% url 'change_email_revert' %}"
+>
+    <div class="modal-card modal-card-wide">
+        <h3 class="modal-title">Account Settings</h3>
+
+        <div class="account-section" id="account-username-section">
+            <h4>Change Username</h4>
+            <div class="account-section-form">
+                <label for="account-new-username">New Username</label>
+                <input type="text" id="account-new-username" autocomplete="username">
+                <label for="account-confirm-username">Confirm New Username</label>
+                <input type="text" id="account-confirm-username" autocomplete="username">
+                <p class="form-note" id="account-username-error"></p>
+                <div class="modal-actions modal-actions-left">
+                    <button type="button" class="modal-btn modal-btn-primary" id="account-username-save">Save Username</button>
+                </div>
+            </div>
+            <div class="account-section-success" id="account-username-success" hidden>
+                <p class="form-note form-note-success">Username changed to <strong id="account-username-success-value"></strong>.</p>
+                <button type="button" class="modal-btn modal-btn-cancel" id="account-username-again">Change Again</button>
+            </div>
+        </div>
+
+        <hr class="account-section-divider">
+
+        <div class="account-section" id="account-password-section">
+            <h4>Change Password</h4>
+            <div class="account-section-form">
+                <label for="account-old-password">Current Password</label>
+                <input type="password" id="account-old-password" autocomplete="current-password">
+                <label for="account-new-password">New Password</label>
+                <input type="password" id="account-new-password" autocomplete="new-password">
+                <p class="field-hint">At least 8 characters, not too common or all-numeric.</p>
+                <label for="account-confirm-password">Confirm New Password</label>
+                <input type="password" id="account-confirm-password" autocomplete="new-password">
+                <p class="form-note" id="account-password-error"></p>
+                <div class="modal-actions modal-actions-left">
+                    <button type="button" class="modal-btn modal-btn-primary" id="account-password-save">Save New Password</button>
+                </div>
+            </div>
+            <div class="account-section-success" id="account-password-success" hidden>
+                <p class="form-note form-note-success">Password changed successfully.</p>
+                <button type="button" class="modal-btn modal-btn-cancel" id="account-password-again">Change Again</button>
+            </div>
+        </div>
+
+        <hr class="account-section-divider">
+
+        <div class="account-section" id="account-email-section">
+            <h4>Change Email</h4>
+            <label class="field-checkbox">
+                <input type="checkbox" id="account-email-checkbox">
+                I want to change my registered email
+                <span class="email-confirmed-tick" id="account-email-tick" hidden>&#10003;</span>
+            </label>
+
+            <div class="account-section-form" id="account-email-request-step" hidden>
+                <label for="account-new-email">New Email</label>
+                <input type="email" id="account-new-email" autocomplete="email">
+                <p class="form-note" id="account-email-request-error"></p>
+                <div class="modal-actions modal-actions-left">
+                    <button type="button" class="modal-btn modal-btn-primary" id="account-email-send">Send Code</button>
+                </div>
+            </div>
+
+            <div class="account-section-form" id="account-email-otp-step" hidden>
+                <p class="form-note">Enter the 6-digit code sent to <strong id="account-email-otp-target"></strong>. It expires in 5 minutes.</p>
+                <label for="account-email-otp">Verification Code</label>
+                <input type="text" id="account-email-otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+                <p class="form-note" id="account-email-otp-notice"></p>
+                <p class="form-note" id="account-email-otp-error"></p>
+                <div class="modal-actions modal-actions-left">
+                    <button type="button" class="modal-btn modal-btn-primary" id="account-email-verify">Verify Code</button>
+                    <button type="button" class="modal-btn-link" id="account-email-resend">Resend Code</button>
+                </div>
+            </div>
+
+            <div class="account-section-success" id="account-email-confirmed-step" hidden>
+                <p class="form-note form-note-success">Email confirmed: <strong id="account-email-confirmed-value"></strong>
+                    <button type="button" class="modal-btn-link" id="account-email-again">Change again</button>
+                </p>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="modal-btn modal-btn-cancel" id="account-settings-cancel">Cancel</button>
+            <button type="button" class="modal-btn modal-btn-primary" id="account-settings-done">Done</button>
+        </div>
+    </div>
+</div>

@@ -35,9 +35,61 @@
                 <input type="hidden" name="next" value="{{ next }}">
 
                 <button type="submit" class="btn">Log In</button>
+                <button type="button" id="forgot-password-btn" class="btn-outline" disabled>Forgot Password?</button>
             </form>
         </div>
     </main>
+
+    <div
+        class="modal-overlay"
+        id="forgot-password-modal"
+        data-check-username-url="{% url 'check_username' %}"
+        data-request-otp-url="{% url 'forgot_password_request_otp' %}"
+        data-verify-otp-url="{% url 'forgot_password_verify_otp' %}"
+        data-reset-url="{% url 'forgot_password_reset' %}"
+    >
+        <div class="modal-card">
+            <h3 class="modal-title">Reset Your Password</h3>
+
+            <div id="forgot-password-email-step">
+                <p>Enter the email address registered to this account. We'll send a one-time verification code to confirm it's really you.</p>
+                <label for="forgot-password-email">Email</label>
+                <input type="email" id="forgot-password-email" autocomplete="email">
+                <p class="form-note" id="forgot-password-email-error"></p>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-cancel" id="forgot-password-email-cancel">Cancel</button>
+                    <button type="button" class="modal-btn modal-btn-primary" id="forgot-password-email-send">Send Code</button>
+                </div>
+            </div>
+
+            <div id="forgot-password-otp-step" hidden>
+                <p>Enter the 6-digit code sent to <strong id="forgot-password-otp-target"></strong>. It expires in 5 minutes.</p>
+                <label for="forgot-password-otp">Verification Code</label>
+                <input type="text" id="forgot-password-otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+                <p class="form-note" id="forgot-password-otp-notice"></p>
+                <p class="form-note" id="forgot-password-otp-error"></p>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn-link" id="forgot-password-otp-resend">Resend Code</button>
+                    <button type="button" class="modal-btn modal-btn-cancel" id="forgot-password-otp-cancel">Cancel</button>
+                    <button type="button" class="modal-btn modal-btn-primary" id="forgot-password-otp-verify">Verify Code</button>
+                </div>
+            </div>
+
+            <div id="forgot-password-reset-step" hidden>
+                <p>Choose a new password for your account.</p>
+                <label for="forgot-password-new">New Password</label>
+                <input type="password" id="forgot-password-new" autocomplete="new-password">
+                <p class="field-hint">At least 8 characters, not too common or all-numeric.</p>
+                <label for="forgot-password-confirm">Confirm New Password</label>
+                <input type="password" id="forgot-password-confirm" autocomplete="new-password">
+                <p class="form-note" id="forgot-password-reset-error"></p>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-cancel" id="forgot-password-reset-cancel">Cancel</button>
+                    <button type="button" class="modal-btn modal-btn-primary" id="forgot-password-reset-submit">Reset Password</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="{% static 'js/dist/login.js' %}"></script>
 </body>

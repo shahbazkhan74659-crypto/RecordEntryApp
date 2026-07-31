@@ -3,6 +3,7 @@ import { confirmDialog } from "./lib/confirm-dialog.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const table = document.querySelector(".table-wrapper table");
+  const selectAllCheckbox = document.querySelector("#select-all-rows");
   const bar = document.querySelector("#selection-bar");
   const countLabel = document.querySelector("#selection-count");
   const editButton = document.querySelector("#selection-edit");
@@ -18,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const groupCancel = document.querySelector("#group-modal-cancel");
   const groupDone = document.querySelector("#group-modal-done");
   if (
-    !table || !bar || !countLabel || !editButton || !groupButton || !deleteButton ||
+    !table || !selectAllCheckbox || !bar || !countLabel || !editButton || !groupButton || !deleteButton ||
     !confirmModal || !confirmMessage || !confirmCancel || !confirmConfirm ||
     !groupModal || !groupMessage || !groupInput || !groupCancel || !groupDone
   ) return;
@@ -72,8 +73,19 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function allCheckboxes() {
+    return [...table.querySelectorAll(".row-select")];
+  }
+
   function selectedCheckboxes() {
     return [...table.querySelectorAll(".row-select:checked")];
+  }
+
+  function updateSelectAllState() {
+    const all = allCheckboxes();
+    const checked = all.filter((checkbox) => checkbox.checked);
+    selectAllCheckbox.checked = all.length > 0 && checked.length === all.length;
+    selectAllCheckbox.indeterminate = checked.length > 0 && checked.length < all.length;
   }
 
   function updateBar() {
@@ -82,6 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
     bar.classList.toggle("visible", checked.length > 0);
     editButton.disabled = checked.length !== 1;
     groupButton.disabled = checked.length <= 1;
+    updateSelectAllState();
   }
 
   table.addEventListener("change", (event) => {
@@ -89,6 +102,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!checkbox.matches(".row-select")) return;
 
     checkbox.closest("tr").classList.toggle("selected", checkbox.checked);
+    updateBar();
+  });
+
+  selectAllCheckbox.addEventListener("change", () => {
+    const checked = selectAllCheckbox.checked;
+    allCheckboxes().forEach((checkbox) => {
+      checkbox.checked = checked;
+      checkbox.closest("tr").classList.toggle("selected", checked);
+    });
     updateBar();
   });
 

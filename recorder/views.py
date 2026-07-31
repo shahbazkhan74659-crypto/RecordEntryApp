@@ -1,6 +1,18 @@
+import secrets
+
 from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.validators import UnicodeUsernameValidator
+from django.contrib.auth.models import User
+from django.conf import settings
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
+from django.core.validators import validate_email
+from django.db.models import Count, F, Window
+from django.db.models.functions import RowNumber
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -8,10 +20,25 @@ from django.views.decorators.http import require_POST
 from .forms import EntryForm
 from .models import Batch, Entry
 
+OTP_TTL_SECONDS = 5 * 60
+OTP_RESEND_COOLDOWN_SECONDS = 60
+OTP_MAX_ATTEMPTS = 5
+EMAIL_REVERT_TTL_SECONDS = 30 * 60
+RESET_TOKEN_TTL_SECONDS = 10 * 60
+
 
 @login_required
 def home(request):
-    return render(request, "home.html", {"entries": Entry.objects.order_by('-date', '-id')})
+    # serial_number is a stable rank by creation order (ascending id). Display
+    # order is "-id" (newest created first) rather than "-date, -id" —
+    # sorting by date first breaks a monotonic descending S.No the moment two
+    # entries share a date (e.g. two added the same day the table was already
+    # seeded for "today"), since same-date rows would then interleave by id
+    # in a way that doesn't match their serial_number order top-to-bottom.
+    entries = Entry.objects.annotate(
+        serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
+    ).order_by('-id')
+    return render(request, "home.html", {"entries": entries})
 
 
 @login_required
@@ -78,6 +105,20 @@ def delete_batch(request, slug):
 
 
 @login_required
+def create_entry(request):
+    if request.method == 'POST':
+        form = EntryForm(request.POST)
+        if form.is_valid():
+            entry = form.save()
+            messages.success(request, f"Entry for {entry.vehicle_number} created.")
+            return redirect('home')
+    else:
+        form = EntryForm()
+
+    return render(request, "new_entry.html", {"form": form})
+
+
+@login_required
 def edit_entry(request, pk):
     entry = get_object_or_404(Entry, pk=pk)
 
@@ -118,3 +159,245 @@ def create_batch(request):
     entries = Entry.objects.filter(pk__in=ids)
     new_batch.entries.add(*entries)
     return JsonResponse({'batch_id': new_batch.id, 'grouped': entries.count()})
+
+
+@login_required
+@require_POST
+def change_username(request):
+    new_username = request.POST.get('new_username', '').strip()
+    if not new_username:
+        return JsonResponse({'error': 'Enter a username.'}, status=400)
+
+    try:
+        UnicodeUsernameValidator()(new_username)
+    except ValidationError as exc:
+        return JsonResponse({'error': ' '.join(exc.messages)}, status=400)
+
+    if User.objects.exclude(pk=request.user.pk).filter(username=new_username).exists():
+        return JsonResponse({'error': 'That username is already taken.'}, status=400)
+
+    request.user.username = new_username
+    request.user.save(update_fields=['username'])
+    return JsonResponse({'username': new_username})
+
+
+@login_required
+@require_POST
+def change_password(request):
+    old_password = request.POST.get('old_password', '')
+    new_password = request.POST.get('new_password', '')
+    confirm_password = request.POST.get('confirm_password', '')
+    # Set by Account Settings' own Cancel-revert call (see account-settings.js)
+    # to restore whatever password was active before this session's change.
+    # Strength validation is intentionally skipped in that case only: the
+    # value being restored was already the live password moments earlier
+    # (proven by matching check_password below), so re-running
+    # AUTH_PASSWORD_VALIDATORS against it — which can reject an existing
+    # password it never would have blocked at set-time (e.g.
+    # UserAttributeSimilarityValidator flagging it against the account's own
+    # email) — would make Cancel unable to undo a password change at all.
+    is_revert = request.POST.get('revert') == '1'
+
+    if not request.user.check_password(old_password):
+        return JsonResponse({'error': 'Current password is incorrect.'}, status=400)
+    if new_password != confirm_password:
+        return JsonResponse({'error': 'Passwords do not match.'}, status=400)
+
+    if not is_revert:
+        try:
+            validate_password(new_password, user=request.user)
+        except ValidationError as exc:
+            return JsonResponse({'error': ' '.join(exc.messages)}, status=400)
+
+    request.user.set_password(new_password)
+    request.user.save(update_fields=['password'])
+    update_session_auth_hash(request, request.user)
+    return JsonResponse({'detail': 'Password changed successfully.'})
+
+
+@login_required
+@require_POST
+def change_email_request_otp(request):
+    new_email = request.POST.get('new_email', '').strip()
+    try:
+        validate_email(new_email)
+    except ValidationError as exc:
+        return JsonResponse({'error': ' '.join(exc.messages)}, status=400)
+
+    user = request.user
+    cooldown_key = f'account_email_otp_cooldown:{user.pk}'
+    if cache.get(cooldown_key):
+        return JsonResponse({'error': 'Please wait a minute before requesting another code.'}, status=429)
+
+    otp = f'{secrets.randbelow(1_000_000):06d}'
+    cache.set(f'account_email_otp:{user.pk}', {'otp': otp, 'email': new_email, 'attempts': 0}, OTP_TTL_SECONDS)
+    cache.set(cooldown_key, True, OTP_RESEND_COOLDOWN_SECONDS)
+
+    try:
+        send_mail(
+            'Entry Recorder — Confirm Your New Email',
+            f'Your verification code is {otp}. It expires in 5 minutes.',
+            settings.DEFAULT_FROM_EMAIL,
+            [new_email],
+            fail_silently=False,
+        )
+    except Exception:
+        return JsonResponse(
+            {'error': 'Could not send the verification email. Check the SMTP settings in .env.'}, status=500,
+        )
+
+    return JsonResponse({'detail': 'A verification code has been sent to the new email address.'})
+
+
+@login_required
+@require_POST
+def change_email_verify(request):
+    new_email = request.POST.get('new_email', '').strip()
+    otp = request.POST.get('otp', '').strip()
+
+    user = request.user
+    otp_key = f'account_email_otp:{user.pk}'
+    entry = cache.get(otp_key)
+    if entry is None:
+        return JsonResponse({'error': 'This code has expired. Please request a new one.'}, status=400)
+
+    if entry['email'].lower() != new_email.lower() or entry['otp'] != otp:
+        entry['attempts'] += 1
+        if entry['attempts'] >= OTP_MAX_ATTEMPTS:
+            cache.delete(otp_key)
+            return JsonResponse({'error': 'Too many incorrect attempts. Please request a new code.'}, status=400)
+        cache.set(otp_key, entry, OTP_TTL_SECONDS)
+        return JsonResponse({'error': 'Incorrect code.'}, status=400)
+
+    cache.delete(otp_key)
+    cache.set(f'account_email_revert:{user.pk}', user.email, EMAIL_REVERT_TTL_SECONDS)
+
+    user.email = new_email
+    user.save(update_fields=['email'])
+    return JsonResponse({'email': new_email})
+
+
+@login_required
+@require_POST
+def change_email_revert(request):
+    user = request.user
+    key = f'account_email_revert:{user.pk}'
+    previous_email = cache.get(key)
+    if previous_email is not None:
+        user.email = previous_email
+        user.save(update_fields=['email'])
+        cache.delete(key)
+    return JsonResponse({'email': user.email})
+
+
+# --- Forgot Password (unauthenticated — runs before login) ---
+# username lookups use __iexact throughout because Django's own ModelBackend
+# (UserManager.get_by_natural_key) authenticates case-insensitively on
+# username, so "correct" here has to mean the same thing it means at actual
+# login time.
+
+
+@require_POST
+def check_username(request):
+    username = request.POST.get('username', '').strip()
+    valid = bool(username) and User.objects.filter(username__iexact=username).exists()
+    return JsonResponse({'valid': valid})
+
+
+@require_POST
+def forgot_password_request_otp(request):
+    username = request.POST.get('username', '').strip()
+    email = request.POST.get('email', '').strip()
+
+    user = User.objects.filter(username__iexact=username).first()
+    if user is None or not email or user.email.lower() != email.lower():
+        # Deliberately the same error whether the username doesn't exist or
+        # the email just doesn't match it — this step can't be used to probe
+        # which usernames are real.
+        return JsonResponse({'error': 'Enter Correct Email'}, status=400)
+
+    cooldown_key = f'forgot_password_cooldown:{user.pk}'
+    if cache.get(cooldown_key):
+        return JsonResponse({'error': 'Please wait a minute before requesting another code.'}, status=429)
+
+    otp = f'{secrets.randbelow(1_000_000):06d}'
+    cache.set(f'forgot_password_otp:{user.pk}', {'otp': otp, 'attempts': 0}, OTP_TTL_SECONDS)
+    cache.set(cooldown_key, True, OTP_RESEND_COOLDOWN_SECONDS)
+
+    try:
+        send_mail(
+            'Entry Recorder — Password Reset Code',
+            f'Your verification code is {otp}. It expires in 5 minutes.',
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+    except Exception:
+        return JsonResponse(
+            {'error': 'Could not send the verification email. Check the SMTP settings in .env.'}, status=500,
+        )
+
+    return JsonResponse({'detail': 'A verification code has been sent to your email.'})
+
+
+@require_POST
+def forgot_password_verify_otp(request):
+    username = request.POST.get('username', '').strip()
+    otp = request.POST.get('otp', '').strip()
+
+    user = User.objects.filter(username__iexact=username).first()
+    if user is None:
+        return JsonResponse({'error': 'Enter Correct Email'}, status=400)
+
+    otp_key = f'forgot_password_otp:{user.pk}'
+    entry = cache.get(otp_key)
+    if entry is None:
+        return JsonResponse({'error': 'This code has expired. Please request a new one.'}, status=400)
+
+    if entry['otp'] != otp:
+        entry['attempts'] += 1
+        if entry['attempts'] >= OTP_MAX_ATTEMPTS:
+            cache.delete(otp_key)
+            return JsonResponse({'error': 'Too many incorrect attempts. Please request a new code.'}, status=400)
+        cache.set(otp_key, entry, OTP_TTL_SECONDS)
+        return JsonResponse({'error': 'Incorrect code.'}, status=400)
+
+    # Single-use: consumed as soon as it's checked correctly.
+    cache.delete(otp_key)
+
+    reset_token = secrets.token_urlsafe(32)
+    cache.set(f'forgot_password_reset_token:{reset_token}', user.pk, RESET_TOKEN_TTL_SECONDS)
+    return JsonResponse({'reset_token': reset_token})
+
+
+@require_POST
+def forgot_password_reset(request):
+    reset_token = request.POST.get('reset_token', '').strip()
+    new_password = request.POST.get('new_password', '')
+    confirm_password = request.POST.get('confirm_password', '')
+
+    token_key = f'forgot_password_reset_token:{reset_token}'
+    user_pk = cache.get(token_key) if reset_token else None
+    if user_pk is None:
+        return JsonResponse({'error': 'This reset link has expired. Please start again.'}, status=400)
+
+    try:
+        user = User.objects.get(pk=user_pk)
+    except User.DoesNotExist:
+        cache.delete(token_key)
+        return JsonResponse({'error': 'This reset link has expired. Please start again.'}, status=400)
+
+    if new_password != confirm_password:
+        return JsonResponse({'error': 'Passwords do not match.'}, status=400)
+
+    try:
+        validate_password(new_password, user=user)
+    except ValidationError as exc:
+        return JsonResponse({'error': ' '.join(exc.messages)}, status=400)
+
+    user.set_password(new_password)
+    user.save(update_fields=['password'])
+    # Single-use: a spent or abandoned token can't be replayed.
+    cache.delete(token_key)
+
+    return JsonResponse({'detail': 'Password reset successful. Please log in with your new password.'})

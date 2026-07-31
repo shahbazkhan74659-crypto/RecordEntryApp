@@ -9,11 +9,15 @@
         {% include "partials/admin_greeting.html" %}
     </div>
 
+    <div class="new-entry-bar">
+        <a href="{% url 'create_entry' %}" class="btn">+ New Record</a>
+    </div>
+
     <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th class="col-select"></th>
+                    <th class="col-select"><input type="checkbox" id="select-all-rows" aria-label="Select all rows"></th>
                     <th>S.No</th>
                     <th>Date</th>
                     <th>Vehicle Number</th>
@@ -27,7 +31,7 @@
                 {% for entry in entries %}
                 <tr>
                     <td class="col-select"><input type="checkbox" class="row-select" value="{{ entry.id }}" aria-label="Select row"></td>
-                    <td>{{ forloop.counter }}</td>
+                    <td>{{ entry.serial_number }}</td>
                     <td>{{ entry.date }}</td>
                     <td>{{ entry.vehicle_number }}</td>
                     <td>{{ entry.rolls }}</td>
