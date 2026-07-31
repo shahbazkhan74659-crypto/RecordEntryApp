@@ -1,4 +1,4 @@
-import { bindModalDismiss } from "./modal-dismiss.js";
+import { bindModalDismiss, lockBodyScroll, unlockBodyScroll } from "./modal-dismiss.js";
 
 // Sibling to confirmDialog: a promise-based modal that resolves the trimmed
 // text typed into #group-modal-input (home.html-only, per CLAUDE.md), or
@@ -20,10 +20,12 @@ export function promptDialog(message) {
     messageEl.textContent = message;
     input.value = "";
     modal.classList.add("visible");
+    lockBodyScroll();
     input.focus();
 
     function settle(result) {
       modal.classList.remove("visible");
+      unlockBodyScroll();
       doneBtn.removeEventListener("click", onDone);
       cancelBtn.removeEventListener("click", onCancel);
       document.removeEventListener("keydown", onEnterKey);

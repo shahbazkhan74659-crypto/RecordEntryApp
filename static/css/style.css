@@ -45,6 +45,17 @@ body {
     .header-inner {
         padding-left: 1.25rem;
         padding-right: 1.25rem;
+        flex-wrap: wrap;
+        row-gap: 0.5rem;
+    }
+
+    .brand-group {
+        flex-wrap: wrap;
+    }
+
+    .site-nav {
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
 }
 
@@ -248,7 +259,8 @@ h1, h2, h3 {
     border: 1px solid var(--color-border);
     border-radius: 10px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     margin-left: -60px;
     margin-right: -60px;
 }
@@ -268,6 +280,10 @@ h1, h2, h3 {
     .new-entry-bar {
         margin-left: 0;
         margin-right: 0;
+    }
+
+    .batch-rename-form {
+        min-width: 0;
     }
 }
 
@@ -324,6 +340,24 @@ td.col-select {
     cursor: pointer;
 }
 
+/* Expands the clickable area of a select-column checkbox to the full
+   padded table cell (th.col-select/td.col-select), instead of just the
+   ~16x16px native checkbox, without changing its visual size or position:
+   the negative margin cancels the cell's own padding so this label fills
+   the cell, then the matching padding restores the original visual gap.
+   Scoped as ".col-select .select-cell" (not just ".select-cell") so this
+   out-specifies ".modal-card label" (0,1,1) when this same partial is
+   rendered inside the add-records modal — a bare ".select-cell" (0,1,0)
+   would otherwise lose that tie-break and fall back to display:block. */
+.col-select .select-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: -0.85rem -1rem;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+}
+
 tbody tr.selected {
     background: #dbeafe;
     box-shadow: inset 3px 0 0 var(--color-primary);
@@ -373,8 +407,8 @@ tbody tr.selected:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
     color: #fff;
     border: none;
     border-radius: 10px;
@@ -466,6 +500,7 @@ tbody tr.selected:hover {
 
 .modal-table-wrapper {
     max-height: 340px;
+    overflow-x: auto;
     overflow-y: auto;
     border: 1px solid var(--color-border);
     border-radius: 8px;
@@ -638,8 +673,8 @@ form label {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
+    width: 2.5rem;
+    height: 2.5rem;
     padding: 0;
     background: none;
     border: none;
@@ -656,7 +691,7 @@ form label {
 .batch-card-menu {
     display: none;
     position: absolute;
-    top: 2.35rem;
+    top: 3.1rem;
     right: 0.6rem;
     z-index: 3;
     min-width: 130px;
@@ -855,6 +890,17 @@ form label {
 
 #account-settings-modal .modal-card::-webkit-scrollbar {
     display: none;
+}
+
+/* Same short-viewport safeguard as account-settings above: without this,
+   a tall modal (the add-records table on batch_edit, or the multi-step
+   forgot-password flow on the login page) can exceed a short/landscape
+   mobile viewport with no way to reach its own Cancel/Done or scroll
+   past its own title, since .modal-overlay itself doesn't scroll. */
+#add-records-modal .modal-card,
+#forgot-password-modal .modal-card {
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .account-section h4 {

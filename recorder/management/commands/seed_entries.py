@@ -25,6 +25,5 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         today = timezone.localdate()
         for offset, data in enumerate(SEED_DATA):
-            entry = Entry.objects.create(**data)
-            Entry.objects.filter(pk=entry.pk).update(date=today - timedelta(days=offset))
+            Entry.objects.create(date=today - timedelta(days=offset), **data)
         self.stdout.write(self.style.SUCCESS(f"Seeded {len(SEED_DATA)} entries."))

@@ -26,3 +26,22 @@ export function bindModalDismiss(modal, onDismiss) {
     document.removeEventListener("keydown", onKeydown);
   };
 }
+
+// Shared body-scroll lock so page content behind a fixed modal-overlay
+// can't be touch-scrolled while a modal is open. Reference-counted so it
+// stays correct even if two lock calls somehow overlap (e.g. a caller
+// re-opening before a previous close's unlock has run); restores the
+// exact previous inline value on full unlock rather than assuming "".
+let lockCount = 0;
+let previousBodyOverflow = "";
+
+export function lockBodyScroll() {
+  if (lockCount === 0) previousBodyOverflow = document.body.style.overflow;
+  lockCount += 1;
+  document.body.style.overflow = "hidden";
+}
+
+export function unlockBodyScroll() {
+  lockCount = Math.max(0, lockCount - 1);
+  if (lockCount === 0) document.body.style.overflow = previousBodyOverflow;
+}

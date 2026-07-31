@@ -31,7 +31,7 @@ same markup instead of repeating it. Expected context variables:
         <thead>
             <tr>
                 {% if show_select %}
-                <th class="col-select">{% if select_all %}<input type="checkbox" id="select-all-rows" aria-label="Select all rows">{% endif %}</th>
+                <th class="col-select">{% if select_all %}<label class="select-cell"><input type="checkbox" id="select-all-rows" aria-label="Select all rows"></label>{% endif %}</th>
                 {% endif %}
                 {% if show_serial %}<th>S.No</th>{% endif %}
                 <th>Date</th>
@@ -46,7 +46,7 @@ same markup instead of repeating it. Expected context variables:
             {% for entry in entries %}
             <tr>
                 {% if show_select %}
-                <td class="col-select"><input type="checkbox" {% if checkbox_class %}class="{{ checkbox_class }}" {% endif %}{% if checkbox_name %}name="{{ checkbox_name }}" {% endif %}value="{{ entry.id }}" aria-label="{{ checkbox_aria_label|default:"Select row" }}"></td>
+                <td class="col-select"><label class="select-cell"><input type="checkbox" {% if checkbox_class %}class="{{ checkbox_class }}" {% endif %}{% if checkbox_name %}name="{{ checkbox_name }}" {% endif %}value="{{ entry.id }}" aria-label="{{ checkbox_aria_label|default:"Select row" }}"></label></td>
                 {% endif %}
                 {% if show_serial %}<td>{% if use_serial_field %}{{ entry.serial_number }}{% else %}{{ forloop.counter }}{% endif %}</td>{% endif %}
                 <td>{{ entry.date }}</td>

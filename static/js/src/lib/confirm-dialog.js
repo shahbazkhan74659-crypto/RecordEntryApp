@@ -1,4 +1,4 @@
-import { bindModalDismiss } from "./modal-dismiss.js";
+import { bindModalDismiss, lockBodyScroll, unlockBodyScroll } from "./modal-dismiss.js";
 
 export function confirmDialog(message) {
   return new Promise((resolve) => {
@@ -14,9 +14,11 @@ export function confirmDialog(message) {
 
     messageEl.textContent = message;
     modal.classList.add("visible");
+    lockBodyScroll();
 
     function settle(result) {
       modal.classList.remove("visible");
+      unlockBodyScroll();
       confirmBtn.removeEventListener("click", onConfirm);
       cancelBtn.removeEventListener("click", onCancel);
       unbindDismiss();

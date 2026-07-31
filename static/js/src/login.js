@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { postForm } from "./lib/api.js";
-import { bindModalDismiss } from "./lib/modal-dismiss.js";
+import { bindModalDismiss, lockBodyScroll, unlockBodyScroll } from "./lib/modal-dismiss.js";
 import { setStepVisibility } from "./lib/step-toggle.js";
 
 const loginSchema = z.object({
@@ -124,6 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function closeModal() {
     modal.classList.remove("visible");
+    unlockBodyScroll();
     resetModalState();
   }
 
@@ -132,6 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
     forgotUsername = usernameInput.value.trim();
     resetModalState();
     modal.classList.add("visible");
+    lockBodyScroll();
   });
 
   emailCancelBtn.addEventListener("click", closeModal);

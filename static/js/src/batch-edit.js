@@ -1,4 +1,4 @@
-import { bindModalDismiss } from "./lib/modal-dismiss.js";
+import { bindModalDismiss, lockBodyScroll, unlockBodyScroll } from "./lib/modal-dismiss.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const openButton = document.querySelector("#open-add-modal");
@@ -8,9 +8,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function close() {
     modal.classList.remove("visible");
+    unlockBodyScroll();
   }
 
-  openButton.addEventListener("click", () => modal.classList.add("visible"));
+  openButton.addEventListener("click", () => {
+    modal.classList.add("visible");
+    lockBodyScroll();
+  });
   cancelButton.addEventListener("click", close);
 
   bindModalDismiss(modal, close);

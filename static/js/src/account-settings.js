@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { postForm } from "./lib/api.js";
-import { bindModalDismiss } from "./lib/modal-dismiss.js";
+import { bindModalDismiss, lockBodyScroll, unlockBodyScroll } from "./lib/modal-dismiss.js";
 import { setStepVisibility } from "./lib/step-toggle.js";
 
 const usernameSchema = z
@@ -288,10 +288,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function openModal() {
     modal.classList.add("visible");
+    lockBodyScroll();
   }
 
   function closeModal() {
     modal.classList.remove("visible");
+    unlockBodyScroll();
   }
 
   openButton.addEventListener("click", () => {

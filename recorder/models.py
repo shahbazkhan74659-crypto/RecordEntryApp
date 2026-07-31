@@ -1,5 +1,6 @@
 from django.core.validators import RegexValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 vehicle_number_validator = RegexValidator(
@@ -33,7 +34,7 @@ class Batch(models.Model):
 
 
 class Entry(models.Model):
-    date = models.DateField(auto_now_add=True)
+    date = models.DateField(default=timezone.localdate)
     vehicle_number = models.CharField(max_length=15, validators=[vehicle_number_validator])
     rolls = models.PositiveIntegerField()
     workers = models.PositiveIntegerField()
