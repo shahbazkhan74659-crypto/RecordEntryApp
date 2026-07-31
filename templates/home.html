@@ -3,7 +3,10 @@
 {% block title %}Entries — Entry Recorder{% endblock %}
 
 {% block content %}
-    <h1>Truck Loading Entries</h1>
+    <div class="page-header">
+        <h1 class="page-title">Truck Loading Entries</h1>
+        <p class="admin-greeting">Administrator Dashboard | Welcome, {{ user.get_username }}</p>
+    </div>
 
     <div class="table-wrapper">
         <table>

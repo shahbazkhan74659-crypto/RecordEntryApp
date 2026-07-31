@@ -5,15 +5,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Entry Recorder{% endblock %}</title>
-    <link rel="icon" href="data:,">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'favicon/apple-touch-icon.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'favicon/favicon-16x16.png' %}">
+    <link rel="shortcut icon" href="{% static 'favicon/favicon.ico' %}">
+    <link rel="manifest" href="{% static 'favicon/site.webmanifest' %}">
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
     <header class="site-header">
         <div class="container header-inner">
-            <a href="/" class="brand">Entry Recorder</a>
+            <a href="/" class="brand">
+                <img src="{% static 'images/LOGO2.png' %}" alt="" class="brand-logo">
+                Entry Recorder
+            </a>
             <nav class="site-nav">
                 {% if user.is_authenticated %}
+                    <a href="#" class="btn-outline">Account Setting</a>
                     <form action="{% url 'logout' %}" method="post" class="logout-form">
                         {% csrf_token %}
                         <button type="submit" class="link-button">Logout</button>
