@@ -27,6 +27,64 @@ EMAIL_REVERT_TTL_SECONDS = 30 * 60
 RESET_TOKEN_TTL_SECONDS = 10 * 60
 
 
+def _send_otp_email(otp_key, cooldown_key, cache_payload, recipient_email, subject):
+    """
+    Shared by change_email_request_otp and forgot_password_request_otp:
+    enforces the resend cooldown, generates a 6-digit OTP, caches it (merged
+    with `cache_payload` — e.g. the email flow's extra 'email' field, which
+    the password flow doesn't have) under `otp_key`, sets the cooldown, and
+    emails the code. Returns an error JsonResponse to return immediately, or
+    None if the email was sent successfully.
+    """
+    if cache.get(cooldown_key):
+        return JsonResponse({'error': 'Please wait a minute before requesting another code.'}, status=429)
+
+    otp = f'{secrets.randbelow(1_000_000):06d}'
+    cache.set(otp_key, {**cache_payload, 'otp': otp, 'attempts': 0}, OTP_TTL_SECONDS)
+    cache.set(cooldown_key, True, OTP_RESEND_COOLDOWN_SECONDS)
+
+    try:
+        send_mail(
+            subject,
+            f'Your verification code is {otp}. It expires in 5 minutes.',
+            settings.DEFAULT_FROM_EMAIL,
+            [recipient_email],
+            fail_silently=False,
+        )
+    except Exception:
+        return JsonResponse(
+            {'error': 'Could not send the verification email. Check the SMTP settings in .env.'}, status=500,
+        )
+
+    return None
+
+
+def _check_otp(otp_key, is_mismatch):
+    """
+    Shared by change_email_verify and forgot_password_verify_otp: looks up
+    `otp_key` in cache, returns an error JsonResponse if it's expired/missing.
+    Otherwise calls `is_mismatch(entry)` — the two callers compare different
+    things (email+otp vs otp only) — and on a mismatch increments the attempt
+    count, capping at OTP_MAX_ATTEMPTS (deleting the entry so it can't be
+    replayed) same as before. Returns (error_response, entry): error_response
+    is None and entry is the (now cache-cleared) cached dict on success.
+    """
+    entry = cache.get(otp_key)
+    if entry is None:
+        return JsonResponse({'error': 'This code has expired. Please request a new one.'}, status=400), None
+
+    if is_mismatch(entry):
+        entry['attempts'] += 1
+        if entry['attempts'] >= OTP_MAX_ATTEMPTS:
+            cache.delete(otp_key)
+            return JsonResponse({'error': 'Too many incorrect attempts. Please request a new code.'}, status=400), None
+        cache.set(otp_key, entry, OTP_TTL_SECONDS)
+        return JsonResponse({'error': 'Incorrect code.'}, status=400), None
+
+    cache.delete(otp_key)
+    return None, entry
+
+
 @login_required
 def home(request):
     # serial_number is a stable rank by creation order (ascending id). Display
@@ -60,7 +118,7 @@ def batch_edit(request, slug):
 
     if request.method == 'POST':
         action = request.POST.get('action')
-        ids = request.POST.getlist('ids')
+        ids = [i for i in request.POST.getlist('ids') if i.isdigit()]
 
         if action == 'rename':
             name = request.POST.get('name', '').strip()
@@ -137,7 +195,7 @@ def edit_entry(request, pk):
 @login_required
 @require_POST
 def delete_entries(request):
-    ids = request.POST.getlist('ids')
+    ids = [i for i in request.POST.getlist('ids') if i.isdigit()]
     if not ids:
         return JsonResponse({'error': 'No ids provided.'}, status=400)
     deleted_count, _ = Entry.objects.filter(pk__in=ids).delete()
@@ -147,7 +205,7 @@ def delete_entries(request):
 @login_required
 @require_POST
 def create_batch(request):
-    ids = request.POST.getlist('ids')
+    ids = [i for i in request.POST.getlist('ids') if i.isdigit()]
     name = request.POST.get('name', '').strip()
 
     if len(ids) < 2:
@@ -225,26 +283,15 @@ def change_email_request_otp(request):
         return JsonResponse({'error': ' '.join(exc.messages)}, status=400)
 
     user = request.user
-    cooldown_key = f'account_email_otp_cooldown:{user.pk}'
-    if cache.get(cooldown_key):
-        return JsonResponse({'error': 'Please wait a minute before requesting another code.'}, status=429)
-
-    otp = f'{secrets.randbelow(1_000_000):06d}'
-    cache.set(f'account_email_otp:{user.pk}', {'otp': otp, 'email': new_email, 'attempts': 0}, OTP_TTL_SECONDS)
-    cache.set(cooldown_key, True, OTP_RESEND_COOLDOWN_SECONDS)
-
-    try:
-        send_mail(
-            'Entry Recorder — Confirm Your New Email',
-            f'Your verification code is {otp}. It expires in 5 minutes.',
-            settings.DEFAULT_FROM_EMAIL,
-            [new_email],
-            fail_silently=False,
-        )
-    except Exception:
-        return JsonResponse(
-            {'error': 'Could not send the verification email. Check the SMTP settings in .env.'}, status=500,
-        )
+    error_response = _send_otp_email(
+        otp_key=f'account_email_otp:{user.pk}',
+        cooldown_key=f'account_email_otp_cooldown:{user.pk}',
+        cache_payload={'email': new_email},
+        recipient_email=new_email,
+        subject='Entry Recorder — Confirm Your New Email',
+    )
+    if error_response is not None:
+        return error_response
 
     return JsonResponse({'detail': 'A verification code has been sent to the new email address.'})
 
@@ -257,19 +304,12 @@ def change_email_verify(request):
 
     user = request.user
     otp_key = f'account_email_otp:{user.pk}'
-    entry = cache.get(otp_key)
-    if entry is None:
-        return JsonResponse({'error': 'This code has expired. Please request a new one.'}, status=400)
+    error_response, _entry = _check_otp(
+        otp_key, lambda entry: entry['email'].lower() != new_email.lower() or entry['otp'] != otp,
+    )
+    if error_response is not None:
+        return error_response
 
-    if entry['email'].lower() != new_email.lower() or entry['otp'] != otp:
-        entry['attempts'] += 1
-        if entry['attempts'] >= OTP_MAX_ATTEMPTS:
-            cache.delete(otp_key)
-            return JsonResponse({'error': 'Too many incorrect attempts. Please request a new code.'}, status=400)
-        cache.set(otp_key, entry, OTP_TTL_SECONDS)
-        return JsonResponse({'error': 'Incorrect code.'}, status=400)
-
-    cache.delete(otp_key)
     cache.set(f'account_email_revert:{user.pk}', user.email, EMAIL_REVERT_TTL_SECONDS)
 
     user.email = new_email
@@ -316,26 +356,15 @@ def forgot_password_request_otp(request):
         # which usernames are real.
         return JsonResponse({'error': 'Enter Correct Email'}, status=400)
 
-    cooldown_key = f'forgot_password_cooldown:{user.pk}'
-    if cache.get(cooldown_key):
-        return JsonResponse({'error': 'Please wait a minute before requesting another code.'}, status=429)
-
-    otp = f'{secrets.randbelow(1_000_000):06d}'
-    cache.set(f'forgot_password_otp:{user.pk}', {'otp': otp, 'attempts': 0}, OTP_TTL_SECONDS)
-    cache.set(cooldown_key, True, OTP_RESEND_COOLDOWN_SECONDS)
-
-    try:
-        send_mail(
-            'Entry Recorder — Password Reset Code',
-            f'Your verification code is {otp}. It expires in 5 minutes.',
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-            fail_silently=False,
-        )
-    except Exception:
-        return JsonResponse(
-            {'error': 'Could not send the verification email. Check the SMTP settings in .env.'}, status=500,
-        )
+    error_response = _send_otp_email(
+        otp_key=f'forgot_password_otp:{user.pk}',
+        cooldown_key=f'forgot_password_cooldown:{user.pk}',
+        cache_payload={},
+        recipient_email=user.email,
+        subject='Entry Recorder — Password Reset Code',
+    )
+    if error_response is not None:
+        return error_response
 
     return JsonResponse({'detail': 'A verification code has been sent to your email.'})
 
@@ -350,21 +379,12 @@ def forgot_password_verify_otp(request):
         return JsonResponse({'error': 'Enter Correct Email'}, status=400)
 
     otp_key = f'forgot_password_otp:{user.pk}'
-    entry = cache.get(otp_key)
-    if entry is None:
-        return JsonResponse({'error': 'This code has expired. Please request a new one.'}, status=400)
+    error_response, _entry = _check_otp(otp_key, lambda entry: entry['otp'] != otp)
+    if error_response is not None:
+        return error_response
 
-    if entry['otp'] != otp:
-        entry['attempts'] += 1
-        if entry['attempts'] >= OTP_MAX_ATTEMPTS:
-            cache.delete(otp_key)
-            return JsonResponse({'error': 'Too many incorrect attempts. Please request a new code.'}, status=400)
-        cache.set(otp_key, entry, OTP_TTL_SECONDS)
-        return JsonResponse({'error': 'Incorrect code.'}, status=400)
-
-    # Single-use: consumed as soon as it's checked correctly.
-    cache.delete(otp_key)
-
+    # Single-use: consumed as soon as it's checked correctly (_check_otp
+    # already deleted it from cache on the success path above).
     reset_token = secrets.token_urlsafe(32)
     cache.set(f'forgot_password_reset_token:{reset_token}', user.pk, RESET_TOKEN_TTL_SECONDS)
     return JsonResponse({'reset_token': reset_token})

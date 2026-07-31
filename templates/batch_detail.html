@@ -8,38 +8,7 @@
         {% include "partials/admin_greeting.html" %}
     </div>
 
-    <div class="table-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    <th>S.No</th>
-                    <th>Date</th>
-                    <th>Vehicle Number</th>
-                    <th>Rolls</th>
-                    <th>Workers</th>
-                    <th>Net Kg</th>
-                    <th>Remark</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in entries %}
-                <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ entry.date }}</td>
-                    <td>{{ entry.vehicle_number }}</td>
-                    <td>{{ entry.rolls }}</td>
-                    <td>{{ entry.workers }}</td>
-                    <td>{{ entry.net_kg }} kg</td>
-                    <td>{{ entry.remark }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="7">No entries in this batch.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% include "partials/entries_table.html" with entries=entries show_select=False show_serial=True use_serial_field=False empty_message="No entries in this batch." colspan=7 %}
 
     <p class="back-link"><a href="{% url 'batch' %}" class="btn-outline">Back to Batches</a></p>
 {% endblock %}

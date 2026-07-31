@@ -1,3 +1,5 @@
+import { bindModalDismiss } from "./modal-dismiss.js";
+
 export function confirmDialog(message) {
   return new Promise((resolve) => {
     const modal = document.querySelector("#confirm-modal");
@@ -17,8 +19,7 @@ export function confirmDialog(message) {
       modal.classList.remove("visible");
       confirmBtn.removeEventListener("click", onConfirm);
       cancelBtn.removeEventListener("click", onCancel);
-      modal.removeEventListener("click", onOverlayClick);
-      document.removeEventListener("keydown", onKeydown);
+      unbindDismiss();
       resolve(result);
     }
 
@@ -30,17 +31,9 @@ export function confirmDialog(message) {
       settle(false);
     }
 
-    function onOverlayClick(event) {
-      if (event.target === modal) settle(false);
-    }
-
-    function onKeydown(event) {
-      if (event.key === "Escape") settle(false);
-    }
+    const unbindDismiss = bindModalDismiss(modal, () => settle(false));
 
     confirmBtn.addEventListener("click", onConfirm);
     cancelBtn.addEventListener("click", onCancel);
-    modal.addEventListener("click", onOverlayClick);
-    document.addEventListener("keydown", onKeydown);
   });
 }

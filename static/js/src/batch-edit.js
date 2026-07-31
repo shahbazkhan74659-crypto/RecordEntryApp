@@ -1,3 +1,5 @@
+import { bindModalDismiss } from "./lib/modal-dismiss.js";
+
 document.addEventListener("DOMContentLoaded", () => {
   const openButton = document.querySelector("#open-add-modal");
   const modal = document.querySelector("#add-records-modal");
@@ -11,11 +13,5 @@ document.addEventListener("DOMContentLoaded", () => {
   openButton.addEventListener("click", () => modal.classList.add("visible"));
   cancelButton.addEventListener("click", close);
 
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) close();
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") close();
-  });
+  bindModalDismiss(modal, close);
 });

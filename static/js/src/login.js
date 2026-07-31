@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { getCookie } from "./lib/cookies.js";
+import { postForm } from "./lib/api.js";
+import { bindModalDismiss } from "./lib/modal-dismiss.js";
+import { setStepVisibility } from "./lib/step-toggle.js";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -62,18 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const verifyOtpUrl = modal.dataset.verifyOtpUrl;
   const resetUrl = modal.dataset.resetUrl;
 
-  async function postForm(url, fields) {
-    const body = new URLSearchParams();
-    Object.entries(fields).forEach(([key, value]) => body.append(key, value));
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "X-CSRFToken": getCookie("csrftoken") },
-      body,
-    });
-    const data = await response.json().catch(() => ({}));
-    return { ok: response.ok, data };
-  }
-
   // Debounced so the button doesn't fire a request on every keystroke.
   let usernameCheckTimer = null;
   usernameInput.addEventListener("input", () => {
@@ -116,9 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let resetToken = "";
 
   function showStep(step) {
-    emailStep.hidden = step !== "email";
-    otpStep.hidden = step !== "otp";
-    resetStep.hidden = step !== "reset";
+    setStepVisibility({ email: emailStep, otp: otpStep, reset: resetStep }, step);
   }
 
   function resetModalState() {
@@ -149,12 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
   emailCancelBtn.addEventListener("click", closeModal);
   otpCancelBtn.addEventListener("click", closeModal);
   resetCancelBtn.addEventListener("click", closeModal);
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) closeModal();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && modal.classList.contains("visible")) closeModal();
-  });
+  bindModalDismiss(modal, closeModal);
 
   emailSendBtn.addEventListener("click", async () => {
     emailError.textContent = "";

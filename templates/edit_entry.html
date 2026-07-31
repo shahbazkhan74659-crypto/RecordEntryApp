@@ -8,26 +8,5 @@
         <p class="admin-greeting">Vehicle {{ entry.vehicle_number }} | {{ entry.date }}</p>
     </div>
 
-    <div class="card">
-        {% if form.errors %}
-            <p class="form-error">Please correct the errors below.</p>
-        {% endif %}
-
-        <form method="post" novalidate>
-            {% csrf_token %}
-
-            {% for field in form %}
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% for error in field.errors %}
-                    <p class="field-error">{{ error }}</p>
-                {% endfor %}
-            {% endfor %}
-
-            <div class="form-actions">
-                <button type="submit" class="btn">Save Changes</button>
-                <a href="{% url 'home' %}" class="btn-outline">Cancel</a>
-            </div>
-        </form>
-    </div>
+    {% include "partials/entry_form.html" with submit_label="Save Changes" %}
 {% endblock %}

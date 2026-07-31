@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { getCookie } from "./lib/cookies.js";
+import { postForm } from "./lib/api.js";
+import { bindModalDismiss } from "./lib/modal-dismiss.js";
+import { setStepVisibility } from "./lib/step-toggle.js";
 
 const usernameSchema = z
   .object({
@@ -30,18 +32,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const verifyOtpUrl = modal.dataset.verifyOtpUrl;
   const revertEmailUrl = modal.dataset.revertEmailUrl;
   const originalUsername = modal.dataset.username;
-
-  async function postForm(url, fields) {
-    const body = new URLSearchParams();
-    Object.entries(fields).forEach(([key, value]) => body.append(key, value));
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "X-CSRFToken": getCookie("csrftoken") },
-      body,
-    });
-    const data = await response.json().catch(() => ({}));
-    return { ok: response.ok, data };
-  }
 
   // --- Username section ---
   const usernameForm = modal.querySelector("#account-username-section .account-section-form");
@@ -177,9 +167,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let pendingNewEmail = "";
 
   function showEmailStep(step) {
-    emailRequestStep.hidden = step !== "enter-email";
-    emailOtpStep.hidden = step !== "enter-otp";
-    emailConfirmedStep.hidden = step !== "confirmed";
+    setStepVisibility(
+      { "enter-email": emailRequestStep, "enter-otp": emailOtpStep, confirmed: emailConfirmedStep },
+      step,
+    );
   }
 
   function resetEmailSection() {
@@ -318,13 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   modal.querySelector("#account-settings-cancel").addEventListener("click", handleCancel);
 
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) handleCancel();
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && modal.classList.contains("visible")) handleCancel();
-  });
+  bindModalDismiss(modal, handleCancel);
 
   modal.querySelector("#account-settings-done").addEventListener("click", () => {
     const shouldReload = usernameChanged;

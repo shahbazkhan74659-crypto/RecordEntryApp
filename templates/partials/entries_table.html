@@ -1,0 +1,66 @@
+{% comment %}
+Shared entries table, parameterized so home.html, batch_detail.html, and
+both tables in batch_edit.html (grouped + available-to-add) can reuse the
+same markup instead of repeating it. Expected context variables:
+
+  entries              - queryset/list of Entry to render
+  wrapper_class         - outer wrapper div class (default "table-wrapper";
+                          batch_edit's add-records modal passes
+                          "modal-table-wrapper")
+  show_select           - whether to render the select checkbox column at all
+  select_all            - whether the header's select cell should contain the
+                          #select-all-rows "select all" checkbox (home only)
+  checkbox_class         - class attribute for each row's checkbox (e.g.
+                          "row-select" on home; unset elsewhere)
+  checkbox_name          - name attribute for each row's checkbox (e.g. "ids"
+                          on batch_edit's plain-form tables; unset on home,
+                          which reads selection via JS, not form submission)
+  checkbox_aria_label    - aria-label for each row's checkbox (default
+                          "Select row"; batch_edit's add-records modal uses
+                          "Select record")
+  show_serial            - whether to render the S.No column at all
+  use_serial_field       - when show_serial is true: True to render the
+                          annotated {{ entry.serial_number }} (home's stable
+                          creation-order rank), False to render
+                          {{ forloop.counter }} (batch tables)
+  empty_message          - text shown in the {% empty %} row
+  colspan                - colspan for the {% empty %} row
+{% endcomment %}
+<div class="{{ wrapper_class|default:"table-wrapper" }}">
+    <table>
+        <thead>
+            <tr>
+                {% if show_select %}
+                <th class="col-select">{% if select_all %}<input type="checkbox" id="select-all-rows" aria-label="Select all rows">{% endif %}</th>
+                {% endif %}
+                {% if show_serial %}<th>S.No</th>{% endif %}
+                <th>Date</th>
+                <th>Vehicle Number</th>
+                <th>Rolls</th>
+                <th>Workers</th>
+                <th>Net Kg</th>
+                <th>Remark</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+            <tr>
+                {% if show_select %}
+                <td class="col-select"><input type="checkbox" {% if checkbox_class %}class="{{ checkbox_class }}" {% endif %}{% if checkbox_name %}name="{{ checkbox_name }}" {% endif %}value="{{ entry.id }}" aria-label="{{ checkbox_aria_label|default:"Select row" }}"></td>
+                {% endif %}
+                {% if show_serial %}<td>{% if use_serial_field %}{{ entry.serial_number }}{% else %}{{ forloop.counter }}{% endif %}</td>{% endif %}
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.vehicle_number }}</td>
+                <td>{{ entry.rolls }}</td>
+                <td>{{ entry.workers }}</td>
+                <td>{{ entry.net_kg }} kg</td>
+                <td>{{ entry.remark }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="{{ colspan }}">{{ empty_message }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

@@ -22,40 +22,7 @@
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="remove">
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th class="col-select"></th>
-                        <th>S.No</th>
-                        <th>Date</th>
-                        <th>Vehicle Number</th>
-                        <th>Rolls</th>
-                        <th>Workers</th>
-                        <th>Net Kg</th>
-                        <th>Remark</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for entry in grouped_entries %}
-                    <tr>
-                        <td class="col-select"><input type="checkbox" name="ids" value="{{ entry.id }}" aria-label="Select row"></td>
-                        <td>{{ forloop.counter }}</td>
-                        <td>{{ entry.date }}</td>
-                        <td>{{ entry.vehicle_number }}</td>
-                        <td>{{ entry.rolls }}</td>
-                        <td>{{ entry.workers }}</td>
-                        <td>{{ entry.net_kg }} kg</td>
-                        <td>{{ entry.remark }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="8">No entries in this batch.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        {% include "partials/entries_table.html" with entries=grouped_entries show_select=True select_all=False checkbox_name="ids" show_serial=True use_serial_field=False empty_message="No entries in this batch." colspan=8 %}
         {% if grouped_entries %}
         <button type="submit" class="btn-danger-outline">Remove Selected from Batch</button>
         {% endif %}
@@ -67,38 +34,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add">
                 <h2 class="modal-title">Add Records</h2>
-                <div class="modal-table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th class="col-select"></th>
-                                <th>Date</th>
-                                <th>Vehicle Number</th>
-                                <th>Rolls</th>
-                                <th>Workers</th>
-                                <th>Net Kg</th>
-                                <th>Remark</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for entry in available_entries %}
-                            <tr>
-                                <td class="col-select"><input type="checkbox" name="ids" value="{{ entry.id }}" aria-label="Select record"></td>
-                                <td>{{ entry.date }}</td>
-                                <td>{{ entry.vehicle_number }}</td>
-                                <td>{{ entry.rolls }}</td>
-                                <td>{{ entry.workers }}</td>
-                                <td>{{ entry.net_kg }} kg</td>
-                                <td>{{ entry.remark }}</td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="7">No ungrouped entries available.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                {% include "partials/entries_table.html" with entries=available_entries wrapper_class="modal-table-wrapper" show_select=True select_all=False checkbox_name="ids" checkbox_aria_label="Select record" show_serial=False empty_message="No ungrouped entries available." colspan=7 %}
                 <div class="modal-actions">
                     <button type="button" id="add-records-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
                     <button type="submit" class="modal-btn modal-btn-primary">Done</button>

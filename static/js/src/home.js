@@ -1,5 +1,6 @@
 import { getCookie } from "./lib/cookies.js";
 import { confirmDialog } from "./lib/confirm-dialog.js";
+import { promptDialog } from "./lib/prompt-dialog.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const table = document.querySelector(".table-wrapper table");
@@ -9,69 +10,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const editButton = document.querySelector("#selection-edit");
   const groupButton = document.querySelector("#selection-group");
   const deleteButton = document.querySelector("#selection-delete");
-  const confirmModal = document.querySelector("#confirm-modal");
-  const confirmMessage = document.querySelector("#confirm-modal-message");
-  const confirmCancel = document.querySelector("#confirm-modal-cancel");
-  const confirmConfirm = document.querySelector("#confirm-modal-confirm");
-  const groupModal = document.querySelector("#group-modal");
-  const groupMessage = document.querySelector("#group-modal-message");
-  const groupInput = document.querySelector("#group-modal-input");
-  const groupCancel = document.querySelector("#group-modal-cancel");
-  const groupDone = document.querySelector("#group-modal-done");
   if (
-    !table || !selectAllCheckbox || !bar || !countLabel || !editButton || !groupButton || !deleteButton ||
-    !confirmModal || !confirmMessage || !confirmCancel || !confirmConfirm ||
-    !groupModal || !groupMessage || !groupInput || !groupCancel || !groupDone
+    !table || !selectAllCheckbox || !bar || !countLabel || !editButton || !groupButton || !deleteButton
   ) return;
 
   const deleteUrl = bar.dataset.deleteUrl;
   const editUrlTemplate = bar.dataset.editUrlTemplate;
   const groupUrl = bar.dataset.groupUrl;
-
-  function promptDialog(message) {
-    return new Promise((resolve) => {
-      groupMessage.textContent = message;
-      groupInput.value = "";
-      groupModal.classList.add("visible");
-      groupInput.focus();
-
-      function settle(result) {
-        groupModal.classList.remove("visible");
-        groupDone.removeEventListener("click", onDone);
-        groupCancel.removeEventListener("click", onCancel);
-        groupModal.removeEventListener("click", onOverlayClick);
-        document.removeEventListener("keydown", onKeydown);
-        resolve(result);
-      }
-
-      function onDone() {
-        const value = groupInput.value.trim();
-        if (!value) {
-          groupInput.focus();
-          return;
-        }
-        settle(value);
-      }
-
-      function onCancel() {
-        settle(null);
-      }
-
-      function onOverlayClick(event) {
-        if (event.target === groupModal) settle(null);
-      }
-
-      function onKeydown(event) {
-        if (event.key === "Escape") settle(null);
-        if (event.key === "Enter") onDone();
-      }
-
-      groupDone.addEventListener("click", onDone);
-      groupCancel.addEventListener("click", onCancel);
-      groupModal.addEventListener("click", onOverlayClick);
-      document.addEventListener("keydown", onKeydown);
-    });
-  }
 
   function allCheckboxes() {
     return [...table.querySelectorAll(".row-select")];

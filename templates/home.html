@@ -13,40 +13,7 @@
         <a href="{% url 'create_entry' %}" class="btn">+ New Record</a>
     </div>
 
-    <div class="table-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    <th class="col-select"><input type="checkbox" id="select-all-rows" aria-label="Select all rows"></th>
-                    <th>S.No</th>
-                    <th>Date</th>
-                    <th>Vehicle Number</th>
-                    <th>Rolls</th>
-                    <th>Workers</th>
-                    <th>Net Kg</th>
-                    <th>Remark</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in entries %}
-                <tr>
-                    <td class="col-select"><input type="checkbox" class="row-select" value="{{ entry.id }}" aria-label="Select row"></td>
-                    <td>{{ entry.serial_number }}</td>
-                    <td>{{ entry.date }}</td>
-                    <td>{{ entry.vehicle_number }}</td>
-                    <td>{{ entry.rolls }}</td>
-                    <td>{{ entry.workers }}</td>
-                    <td>{{ entry.net_kg }} kg</td>
-                    <td>{{ entry.remark }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="8">No entries yet.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% include "partials/entries_table.html" with entries=entries show_select=True select_all=True checkbox_class="row-select" show_serial=True use_serial_field=True empty_message="No entries yet." colspan=8 %}
 
     <div class="selection-bar" id="selection-bar" data-delete-url="{% url 'delete_entries' %}" data-edit-url-template="{% url 'edit_entry' pk=0 %}" data-group-url="{% url 'create_batch' %}">
         <span id="selection-count" class="selection-count"></span>
