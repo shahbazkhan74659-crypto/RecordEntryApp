@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Batches — Entry Recorder{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h1 class="page-title">Batches</h1>
+        {% include "partials/admin_greeting.html" %}
+    </div>
+
+    <div class="batch-grid">
+        {% for b in batches %}
+        <div class="batch-card" data-slug="{{ b.slug }}" data-name="{{ b.name }}" data-delete-url="{% url 'delete_batch' slug=b.slug %}">
+            <button type="button" class="batch-card-menu-btn" aria-label="Batch options" aria-haspopup="true" aria-expanded="false">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="1.75"></circle>
+                    <circle cx="12" cy="12" r="1.75"></circle>
+                    <circle cx="12" cy="19" r="1.75"></circle>
+                </svg>
+            </button>
+            <div class="batch-card-menu">
+                <a href="{% url 'batch_edit' slug=b.slug %}" class="batch-card-menu-item">Edit</a>
+                <button type="button" class="batch-card-menu-item batch-card-menu-delete">Delete</button>
+            </div>
+            <a href="{% url 'batch_detail' slug=b.slug %}" class="batch-card-link">
+                <h2 class="batch-card-name">{{ b.name }}</h2>
+                <p class="batch-card-meta">{{ b.entry_count }} entr{{ b.entry_count|pluralize:"y,ies" }}</p>
+                <p class="batch-card-date">{{ b.created_at|date:"M d, Y" }}</p>
+            </a>
+        </div>
+        {% empty %}
+        <p class="batch-empty">No batches yet. Select multiple entries on the Home page and click Group to create one.</p>
+        {% endfor %}
+    </div>
+
+    {% include "partials/confirm_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+    <script src="{% static 'js/dist/batch.js' %}"></script>
+{% endblock %}

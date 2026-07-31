@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit {{ batch.name }} — Entry Recorder{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <form method="post" class="batch-rename-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="rename">
+            <input type="text" name="name" value="{{ batch.name }}" maxlength="100" class="batch-name-input" required>
+            <button type="submit" class="btn">Save Name</button>
+        </form>
+        {% include "partials/admin_greeting.html" %}
+    </div>
+
+    <div class="section-header">
+        <h2 class="section-title">Grouped Records</h2>
+        <button type="button" id="open-add-modal" class="btn">+ Add</button>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="remove">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="col-select"></th>
+                        <th>S.No</th>
+                        <th>Date</th>
+                        <th>Vehicle Number</th>
+                        <th>Rolls</th>
+                        <th>Workers</th>
+                        <th>Net Kg</th>
+                        <th>Remark</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in grouped_entries %}
+                    <tr>
+                        <td class="col-select"><input type="checkbox" name="ids" value="{{ entry.id }}" aria-label="Select row"></td>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ entry.date }}</td>
+                        <td>{{ entry.vehicle_number }}</td>
+                        <td>{{ entry.rolls }}</td>
+                        <td>{{ entry.workers }}</td>
+                        <td>{{ entry.net_kg }} kg</td>
+                        <td>{{ entry.remark }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8">No entries in this batch.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if grouped_entries %}
+        <button type="submit" class="btn-danger-outline">Remove Selected from Batch</button>
+        {% endif %}
+    </form>
+
+    <div class="modal-overlay" id="add-records-modal">
+        <div class="modal-card modal-card-wide">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add">
+                <h2 class="modal-title">Add Records</h2>
+                <div class="modal-table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="col-select"></th>
+                                <th>Date</th>
+                                <th>Vehicle Number</th>
+                                <th>Rolls</th>
+                                <th>Workers</th>
+                                <th>Net Kg</th>
+                                <th>Remark</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in available_entries %}
+                            <tr>
+                                <td class="col-select"><input type="checkbox" name="ids" value="{{ entry.id }}" aria-label="Select record"></td>
+                                <td>{{ entry.date }}</td>
+                                <td>{{ entry.vehicle_number }}</td>
+                                <td>{{ entry.rolls }}</td>
+                                <td>{{ entry.workers }}</td>
+                                <td>{{ entry.net_kg }} kg</td>
+                                <td>{{ entry.remark }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7">No ungrouped entries available.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="add-records-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
+                    <button type="submit" class="modal-btn modal-btn-primary">Done</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <p class="back-link"><a href="{% url 'batch' %}" class="btn-outline">Back to Batches</a></p>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{% static 'js/dist/batch-edit.js' %}"></script>
+{% endblock %}
