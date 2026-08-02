@@ -180,7 +180,7 @@ button.btn-outline:hover {
 
 /* Main content */
 main.container {
-    padding-top: 2rem;
+    padding-top: 1rem;
     padding-bottom: 2rem;
     min-height: calc(100vh - 140px);
 }
@@ -374,16 +374,85 @@ h1, h2, h3 {
     background: var(--color-primary-dark);
 }
 
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.pagination-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pagination-group-label {
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.pagination-link {
+    padding: 0.5rem 1.1rem;
+    border: 2px solid var(--color-text);
+    border-radius: 9999px;
+    background: #fff;
+    color: #000;
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.pagination-link.pagination-icon {
+    padding: 0.5rem 0.85rem;
+    min-width: 2.5rem;
+    text-align: center;
+}
+
+.pagination-link:hover {
+    background: #000;
+    color: #fff;
+}
+
+.pagination-link.disabled {
+    border-color: var(--color-border);
+    color: var(--color-muted);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.pagination-status {
+    color: var(--color-muted);
+    font-size: 0.9rem;
+}
+
 @media (max-width: 768px) {
     .page-header,
     .table-wrapper,
-    .new-entry-bar {
+    .new-entry-bar,
+    .batch-grid,
+    .batch-search-bar {
         margin-left: 0;
         margin-right: 0;
     }
 
     .batch-rename-form {
         min-width: 0;
+    }
+
+    .batch-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .batch-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -711,6 +780,18 @@ tbody tr.selected:hover {
     border-color: var(--color-primary);
 }
 
+.range-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+}
+
+.range-options .save-option-btn {
+    width: auto;
+    text-align: center;
+}
+
 .btn {
     display: inline-block;
     padding: 0.5rem 1rem;
@@ -781,11 +862,26 @@ form label {
     padding: 2rem;
 }
 
+.batch-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: -200px;
+    margin-right: -200px;
+    margin-bottom: 1.5rem;
+}
+
+.batch-search-bar .entry-search-input {
+    margin-left: 0;
+}
+
 /* Batch cards */
 .batch-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
+    margin-left: -200px;
+    margin-right: -200px;
 }
 
 .batch-card {
@@ -1042,9 +1138,15 @@ form label {
    mobile viewport with no way to reach its own Cancel/Done or scroll
    past its own title, since .modal-overlay itself doesn't scroll. */
 #add-records-modal .modal-card,
-#forgot-password-modal .modal-card {
+#forgot-password-modal .modal-card,
+#range-modal .modal-card {
     max-height: 90vh;
     overflow-y: auto;
+}
+
+/* Stacks above #save-modal since the range picker opens without closing it. */
+#range-modal {
+    z-index: 301;
 }
 
 .account-section h4 {

@@ -11,8 +11,8 @@
 
     <div class="new-entry-bar">
         <div class="date-filter">
-            <input type="date" id="date-filter-input" class="date-filter-input-hidden" aria-label="Filter entries by date" tabindex="-1">
-            <button type="button" id="date-filter-btn" class="date-filter-btn" aria-label="Filter by date">
+            <input type="date" id="date-filter-input" class="date-filter-input-hidden" aria-label="Filter entries by date" tabindex="-1" value="{{ current_date }}">
+            <button type="button" id="date-filter-btn" class="date-filter-btn{% if current_date %} active{% endif %}" aria-label="Filter by date">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="4" width="18" height="18" rx="2"></rect>
                     <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -20,14 +20,8 @@
                     <line x1="3" y1="10" x2="21" y2="10"></line>
                 </svg>
             </button>
-            <button type="button" id="date-filter-clear" class="date-filter-clear" aria-label="Show all records" hidden>All</button>
-            <input type="text" id="entry-search-input" name="entry-filter" class="entry-search-input" placeholder="e.g., Vehicle no." aria-label="Search by vehicle number" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" readonly>
-            <button type="button" id="entry-search-btn" class="entry-search-btn" aria-label="Search">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="7"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-            </button>
+            <button type="button" id="date-filter-clear" class="date-filter-clear" aria-label="Show all records"{% if not current_date and not current_search %} hidden{% endif %}>All</button>
+            {% include "partials/search_bar.html" %}
         </div>
         <div class="new-entry-actions">
             <button type="button" id="save-pdf-btn" class="btn">Save</button>
@@ -35,9 +29,11 @@
         </div>
     </div>
 
-    {% include "partials/entries_table.html" with entries=entries show_select=True select_all=True checkbox_class="row-select" show_serial=True use_serial_field=True empty_message="No entries yet." colspan=10 %}
+    {% include "partials/entries_table.html" with entries=entries show_select=True select_all=True checkbox_class="row-select" show_serial=True use_serial_field=True empty_message=empty_message colspan=10 %}
 
-    <div class="selection-bar" id="selection-bar" data-delete-url="{% url 'delete_entries' %}" data-edit-url-template="{% url 'edit_entry' pk=0 %}" data-group-url="{% url 'create_batch' %}" data-download-url="{% url 'download_entries_pdf' %}">
+    {% include "partials/pagination.html" with pagination_noun_singular="entry" pagination_noun_plural="entries" %}
+
+    <div class="selection-bar" id="selection-bar" data-delete-url="{% url 'delete_entries' %}" data-edit-url-template="{% url 'edit_entry' pk=0 %}" data-group-url="{% url 'create_batch' %}" data-download-url="{% url 'download_entries_pdf' %}" data-entry-count="{{ entry_count }}">
         <span id="selection-count" class="selection-count"></span>
         <button type="button" id="selection-edit" class="btn-edit" aria-label="Edit selected">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -92,10 +88,21 @@
                 <button type="button" class="save-option-btn" data-scope="last_10">Last 10</button>
                 <button type="button" class="save-option-btn" data-scope="last_50">Last 50</button>
                 <button type="button" class="save-option-btn" data-scope="last_100">Last 100</button>
+                <button type="button" id="by-range-btn" class="save-option-btn">Save by Range</button>
                 <button type="button" class="save-option-btn" data-scope="choose">Choose</button>
             </div>
             <div class="modal-actions">
                 <button type="button" id="save-modal-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="range-modal">
+        <div class="modal-card modal-card-wide">
+            <p class="modal-title">Select Range</p>
+            <div class="range-options" id="range-options"></div>
+            <div class="modal-actions">
+                <button type="button" id="range-modal-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
             </div>
         </div>
     </div>

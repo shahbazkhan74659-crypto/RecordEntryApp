@@ -3,8 +3,13 @@ import { confirmDialog } from "./lib/confirm-dialog.js";
 import { promptDialog } from "./lib/prompt-dialog.js";
 import { bindModalDismiss, lockBodyScroll, unlockBodyScroll } from "./lib/modal-dismiss.js";
 import { downloadPdf } from "./lib/download-pdf.js";
+import { initDateSearchFilter } from "./lib/date-search-filter.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Independent of the selection-bar guard below (own null-checks), so it
+  // still works if this ever runs on a page without the bulk-selection UI.
+  initDateSearchFilter();
+
   const table = document.querySelector(".table-wrapper table");
   const selectAllCheckbox = document.querySelector("#select-all-rows");
   const bar = document.querySelector("#selection-bar");
@@ -150,12 +155,45 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveButton = document.querySelector("#save-pdf-btn");
   const saveModal = document.querySelector("#save-modal");
   const saveModalCancel = document.querySelector("#save-modal-cancel");
-  const saveOptionButtons = saveModal ? [...saveModal.querySelectorAll(".save-option-btn")] : [];
+  const saveOptionButtons = saveModal ? [...saveModal.querySelectorAll(".save-option-btn[data-scope]")] : [];
+  const byRangeButton = document.querySelector("#by-range-btn");
+  const rangeModal = document.querySelector("#range-modal");
+  const rangeModalCancel = document.querySelector("#range-modal-cancel");
+  const rangeOptionsContainer = document.querySelector("#range-options");
+  const entryCount = Number(bar.dataset.entryCount);
 
   if (saveButton && saveModal && saveModalCancel && saveOptionButtons.length) {
     function closeSaveModal() {
+      // A single Escape press fires both this modal's and the range modal's
+      // bindModalDismiss listeners; when the range modal is open on top,
+      // redirect to closing that one first so Escape closes the topmost
+      // modal only (a second press then closes this one as normal).
+      if (rangeModal && rangeModal.classList.contains("visible")) {
+        closeRangeModal();
+        return;
+      }
       saveModal.classList.remove("visible");
       unlockBodyScroll();
+    }
+
+    function closeRangeModal() {
+      rangeModal.classList.remove("visible");
+      unlockBodyScroll();
+    }
+
+    // Ranges of 100 beyond the first 100 (101-200, 201-300, ...), extending
+    // only as long as more than 20 records remain past the last boundary —
+    // mirrors "Last 100" etc.'s '-id' most-recent-first ordering. Returned
+    // highest-first so the newest (most recently reachable) range shows
+    // first in the grid, matching "Last 100" already showing the newest end.
+    function buildRanges(count) {
+      const ranges = [];
+      let boundary = 100;
+      while (count - boundary > 20) {
+        ranges.push({ start: boundary + 1, end: boundary + 100 });
+        boundary += 100;
+      }
+      return ranges.reverse();
     }
 
     saveButton.addEventListener("click", () => {
@@ -179,87 +217,45 @@ document.addEventListener("DOMContentLoaded", () => {
         await downloadPdf(downloadUrl, { scope });
       });
     });
-  }
 
-  const dateFilterInput = document.querySelector("#date-filter-input");
-  const dateFilterBtn = document.querySelector("#date-filter-btn");
-  const dateFilterClear = document.querySelector("#date-filter-clear");
-  const searchInput = document.querySelector("#entry-search-input");
+    if (byRangeButton && rangeModal && rangeModalCancel && rangeOptionsContainer) {
+      byRangeButton.addEventListener("click", () => {
+        const ranges = buildRanges(entryCount);
 
-  if (dateFilterInput && dateFilterBtn && dateFilterClear) {
-    const tbody = table.querySelector("tbody");
-    let noResultsRow = null;
-
-    function toggleNoResultsRow(show) {
-      if (show) {
-        if (!noResultsRow) {
-          noResultsRow = document.createElement("tr");
-          const cell = document.createElement("td");
-          cell.colSpan = table.querySelectorAll("thead th").length;
-          cell.textContent = "No matching entries.";
-          noResultsRow.appendChild(cell);
-          tbody.appendChild(noResultsRow);
+        if (!ranges.length) {
+          closeSaveModal();
+          window.showToast("No more records beyond the first 100.", "success");
+          return;
         }
-        noResultsRow.style.display = "";
-      } else if (noResultsRow) {
-        noResultsRow.style.display = "none";
-      }
-    }
 
-    function applyFilters() {
-      const dateValue = dateFilterInput.value;
-      const searchValue = searchInput ? searchInput.value.trim().toLowerCase() : "";
-      const rows = [...tbody.querySelectorAll("tr[data-date]")];
-      let visibleCount = 0;
+        function addRangeOption(label, onClick) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "save-option-btn";
+          button.textContent = label;
+          button.addEventListener("click", async () => {
+            closeRangeModal();
+            closeSaveModal();
+            await onClick();
+          });
+          rangeOptionsContainer.appendChild(button);
+        }
 
-      rows.forEach((row) => {
-        const matchesDate = !dateValue || row.dataset.date === dateValue;
-        const matchesSearch = !searchValue || row.dataset.vehicle.includes(searchValue);
-        const matches = matchesDate && matchesSearch;
-        row.style.display = matches ? "" : "none";
-        if (matches) visibleCount += 1;
+        rangeOptionsContainer.innerHTML = "";
+        ranges.forEach(({ start, end }) => {
+          addRangeOption(`${start}-${end}`, () => downloadPdf(downloadUrl, { scope: "range", start, end }));
+        });
+        // The oldest 100 records — the mirror image of "Last 100", anchored
+        // to the other end of the table. Placed last so the grid reads as
+        // a continuous countdown toward the very beginning of the ledger.
+        addRangeOption("1-100", () => downloadPdf(downloadUrl, { scope: "first_100" }));
+
+        rangeModal.classList.add("visible");
+        lockBodyScroll();
       });
 
-      dateFilterBtn.classList.toggle("active", !!dateValue);
-      dateFilterClear.hidden = !dateValue && !searchValue;
-      toggleNoResultsRow(rows.length > 0 && visibleCount === 0);
-    }
-
-    dateFilterBtn.addEventListener("click", () => {
-      if (typeof dateFilterInput.showPicker === "function") {
-        dateFilterInput.showPicker();
-      } else {
-        dateFilterInput.focus();
-      }
-    });
-
-    dateFilterInput.addEventListener("change", applyFilters);
-    dateFilterClear.addEventListener("click", () => {
-      dateFilterInput.value = "";
-      if (searchInput) searchInput.value = "";
-      applyFilters();
-    });
-
-    const searchBtn = document.querySelector("#entry-search-btn");
-
-    if (searchInput && searchBtn) {
-      searchBtn.addEventListener("click", applyFilters);
-      searchInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") applyFilters();
-      });
-
-      // Starts readonly (see home.html) so Chrome's autofill never evaluates
-      // it at page-load time — that's when it decides to offer the saved
-      // "Addresses and more" suggestion, and autocomplete="off" alone doesn't
-      // reliably stop it. Dropped on the earliest real interaction event
-      // (before "focus") so the field is already editable by the time focus
-      // actually lands.
-      function enableSearchInput() {
-        searchInput.removeAttribute("readonly");
-      }
-      searchInput.addEventListener("mousedown", enableSearchInput, { once: true });
-      searchInput.addEventListener("touchstart", enableSearchInput, { once: true });
-      searchInput.addEventListener("focus", enableSearchInput, { once: true });
+      rangeModalCancel.addEventListener("click", closeRangeModal);
+      bindModalDismiss(rangeModal, closeRangeModal);
     }
   }
 });

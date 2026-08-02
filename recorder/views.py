@@ -1,5 +1,7 @@
 import secrets
+from datetime import date as date_cls
 from io import BytesIO
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
@@ -10,6 +12,7 @@ from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.db.models import Count, F, Window
@@ -19,7 +22,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -103,24 +106,117 @@ def _check_otp(otp_key, is_mismatch):
     return None, entry
 
 
+HOME_PAGE_SIZE = 30
+
+
 @login_required
 def home(request):
-    # serial_number is a stable rank by creation order (ascending id). Display
-    # order is "-id" (newest created first) rather than "-date, -id" —
-    # sorting by date first breaks a monotonic descending S.No the moment two
-    # entries share a date (e.g. two added the same day the table was already
-    # seeded for "today"), since same-date rows would then interleave by id
-    # in a way that doesn't match their serial_number order top-to-bottom.
-    entries = Entry.objects.annotate(
-        serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
-    ).order_by('-id')
-    return render(request, "home.html", {"entries": entries})
+    current_search = request.GET.get('q', '').strip()
+
+    current_date = request.GET.get('date', '').strip()
+    if current_date:
+        try:
+            date_cls.fromisoformat(current_date)
+        except ValueError:
+            current_date = ''  # malformed/tampered query param, ignore rather than 500
+
+    # The page to return to when the "All" filter-clear button is clicked —
+    # captured once (client-side, in home.js) at the moment a filter is
+    # first applied, then carried forward through every subsequent
+    # date/search/pagination link for the rest of that filtered session.
+    # Never used in a query, purely echoed back into pagination link hrefs
+    # below, so a non-digit value is just dropped rather than validated
+    # further (Paginator.get_page() already falls back to page 1 for a
+    # bogus/out-of-range page number on its own).
+    return_page = request.GET.get('return_page', '').strip()
+    if not return_page.isdigit():
+        return_page = ''
+
+    # Display order is "-id" (newest created first) rather than "-date, -id"
+    # — sorting by date first breaks a monotonic descending S.No the moment
+    # two entries share a date, since same-date rows would then interleave
+    # by id in a way that doesn't match their serial_number order
+    # top-to-bottom (see serial_number backfill below).
+    qs = Entry.objects.order_by('-id')
+    if current_date:
+        qs = qs.filter(date=current_date)
+    if current_search:
+        qs = qs.filter(vehicle_number__icontains=current_search)
+
+    paginator = Paginator(qs, HOME_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    # serial_number is each entry's stable rank by creation order (ascending
+    # id) — the same real, global S.No the PDF export uses (see
+    # download_entries_pdf's identically-named serial_by_id dict). Backfilled
+    # onto just this page's ~25 already-fetched rows via a fresh, *unfiltered*
+    # ranking rather than annotating the filtered/paginated queryset directly:
+    # Window(RowNumber()) ranks against whatever rows survive the SQL WHERE
+    # clause, which runs before window functions do, so annotating after a
+    # date/search .filter() would rank only within the filtered subset
+    # instead of each entry's real, global serial number.
+    serial_by_id = dict(
+        Entry.objects.annotate(
+            serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
+        ).values_list('id', 'serial_number')
+    )
+    for entry in page_obj.object_list:
+        entry.serial_number = serial_by_id[entry.id]
+
+    entry_count = Entry.objects.count()
+    empty_message = 'No matching entries.' if (current_date or current_search) else 'No entries yet.'
+
+    # Shared query-string suffix (everything but "page") for the First/Prev/
+    # Next/Last pagination links below, built once here rather than repeated
+    # inline in the template 4x — each link just does "?page=N{{ pagination_qs }}".
+    extra_params = {}
+    if current_date:
+        extra_params['date'] = current_date
+    if current_search:
+        extra_params['q'] = current_search
+    if return_page:
+        extra_params['return_page'] = return_page
+    pagination_qs = ('&' + urlencode(extra_params)) if extra_params else ''
+
+    return render(request, "home.html", {
+        "entries": page_obj.object_list,
+        "page_obj": page_obj,
+        "current_date": current_date,
+        "current_search": current_search,
+        "return_page": return_page,
+        "entry_count": entry_count,
+        "empty_message": empty_message,
+        "pagination_qs": pagination_qs,
+    })
+
+
+BATCH_PAGE_SIZE = 40  # 10 rows x 4 cards/row (the grid's default column count)
 
 
 @login_required
 def batch(request):
+    current_search = request.GET.get('q', '').strip()
+
     batches = Batch.objects.annotate(entry_count=Count('entries')).order_by('-created_at')
-    return render(request, "batch.html", {"batches": batches})
+    if current_search:
+        batches = batches.filter(name__icontains=current_search)
+
+    paginator = Paginator(batches, BATCH_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    pagination_qs = ('&' + urlencode({'q': current_search})) if current_search else ''
+    empty_message = (
+        'No matching batches.' if current_search
+        else 'No batches yet. Select multiple entries on the Home page and click Group to create one.'
+    )
+
+    return render(request, "batch.html", {
+        "batches": page_obj.object_list,
+        "page_obj": page_obj,
+        "current_search": current_search,
+        "pagination_qs": pagination_qs,
+        "empty_message": empty_message,
+    })
 
 
 @login_required
@@ -254,6 +350,24 @@ def download_entries_pdf(request):
     elif scope == 'batch':
         batch_obj = get_object_or_404(Batch, slug=request.POST.get('slug', ''))
         entries = batch_obj.entries.order_by('-date', '-id')
+    elif scope == 'range':
+        start = request.POST.get('start', '')
+        end = request.POST.get('end', '')
+        if not (start.isdigit() and end.isdigit()) or int(start) < 1 or int(end) < int(start):
+            return JsonResponse({'error': 'Invalid range.'}, status=400)
+        start, end = int(start), int(end)
+        # Same '-id' most-recent-first ordering as the "Last N" scopes above —
+        # a range is a continuation of "Last 100", not a different ordering.
+        entries = Entry.objects.order_by('-id')[start - 1:end]
+    elif scope == 'first_100':
+        # The oldest 100 records — the mirror image of 'last_100', anchored
+        # to the *other* end of the table. Ordered ascending (oldest first)
+        # rather than the '-id' newest-first convention every other scope
+        # uses, so the PDF reads top-to-bottom the same direction its S.No
+        # counts up: the real app serial_number for these specific rows
+        # already is 1..100 (or fewer, capped naturally by the slice), so
+        # no special-casing is needed in the S.No section below.
+        entries = Entry.objects.order_by('id')[:100]
     elif scope in PDF_SCOPE_LIMITS:
         entries = Entry.objects.order_by('-id')
         limit = PDF_SCOPE_LIMITS[scope]
@@ -279,15 +393,46 @@ def download_entries_pdf(request):
         fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_CENTER,
     )
 
+    body_style = ParagraphStyle(
+        'PdfTableBody', parent=styles['Normal'], fontName='Helvetica', fontSize=8, leading=10, alignment=TA_LEFT,
+    )
+
     rows = [[
         Paragraph(text, header_style) for text in (
             'S.No', 'Date', 'Vehicle Number', 'Loading/Roll', 'Net Kg (Loading/Roll)',
-            'Weight/Roll', 'Net Kg (Weight/Roll)', 'Workers',
+            'Weight/Roll', 'Net Kg (Weight/Roll)', 'Workers', 'Remark',
         )
     ]]
-    for index, entry in enumerate(entries, start=1):
+    if scope == 'range':
+        # This scope's S.No mirrors the range button's own label (101-200 ->
+        # S.No 101..200) rather than each entry's real app serial_number — a
+        # deliberate difference from every other scope below: a range
+        # download is conceptually "page 2 of the ledger", so its row
+        # numbers should read as a continuous 101, 102, ... regardless of
+        # the underlying ids, the same way a printed ledger's second page
+        # would be numbered.
+        sno_source = enumerate(entries, start=start)
+    else:
+        # The home page's own S.No (a rank by creation order, ascending id).
+        # Deliberately computed as a fresh, unfiltered ranking over the
+        # *whole* table rather than an annotate()+filter() on one query:
+        # Window(RowNumber()) ranks against whatever rows survive the SQL
+        # WHERE clause, which runs before window functions do — so e.g.
+        # annotating then .filter(pk__in=ids) for "choose" would rank only
+        # within the 2-3 chosen rows (1, 2, 3...) instead of their real,
+        # global serial numbers. Ranking the full table once and looking up
+        # by id sidesteps that trap for every scope that filters first
+        # (choose, batch).
+        serial_by_id = dict(
+            Entry.objects.annotate(
+                serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
+            ).values_list('id', 'serial_number')
+        )
+        sno_source = ((serial_by_id[entry.id], entry) for entry in entries)
+
+    for sno, entry in sno_source:
         rows.append([
-            str(index),
+            str(sno),
             entry.date.strftime('%d-%m-%Y'),
             entry.vehicle_number,
             _fmt_pdf_number(entry.loading_roll),
@@ -295,9 +440,10 @@ def download_entries_pdf(request):
             _fmt_pdf_number(entry.weight_roll),
             _fmt_pdf_number(entry.net_kg_weight_roll, ' kg'),
             _fmt_pdf_number(entry.workers),
+            Paragraph(entry.remark or '—', body_style),
         ])
 
-    table = Table(rows, repeatRows=1, colWidths=[35, 65, 100, 65, 85, 65, 85, 55])
+    table = Table(rows, repeatRows=1, colWidths=[35, 65, 100, 65, 85, 65, 85, 55, 185])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#16233d')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -324,7 +470,12 @@ def download_entries_pdf(request):
     ]
     doc.build(elements)
 
-    scope_part = batch_obj.slug if batch_obj else scope
+    if batch_obj:
+        scope_part = batch_obj.slug
+    elif scope == 'range':
+        scope_part = f'range-{start}-{end}'
+    else:
+        scope_part = scope
     filename = f'truck-entries-{scope_part}-{timezone.localdate().isoformat()}.pdf'
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'

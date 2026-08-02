@@ -1,0 +1,40 @@
+{% comment %}
+Shared First/Prev/Next/Last pagination bar, used by home.html and batch.html
+(both paginate via Django's Paginator). Expected context variables:
+
+  page_obj                - the Page object from Paginator.get_page()
+  pagination_qs            - optional query-string suffix (e.g. "&date=...
+                              &q=...") appended after "?page=N" on every
+                              link, for pages with filters to preserve
+                              across pagination (home only — simply absent/
+                              empty on pages like batch.html with no filters)
+  pagination_noun_singular  - e.g. "entry" / "batch"
+  pagination_noun_plural    - e.g. "entries" / "batches"
+{% endcomment %}
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination">
+    <div class="pagination-group">
+        <span class="pagination-group-label">Prev</span>
+        {% if page_obj.has_previous %}
+        <a class="pagination-link pagination-icon" href="?page=1{{ pagination_qs }}" aria-label="First page">&laquo;&laquo;</a>
+        <a class="pagination-link pagination-icon" href="?page={{ page_obj.previous_page_number }}{{ pagination_qs }}" aria-label="Previous page">&laquo;</a>
+        {% else %}
+        <span class="pagination-link pagination-icon disabled" aria-hidden="true">&laquo;&laquo;</span>
+        <span class="pagination-link pagination-icon disabled" aria-hidden="true">&laquo;</span>
+        {% endif %}
+    </div>
+
+    <span class="pagination-status">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} &mdash; {{ page_obj.paginator.count }} {% if page_obj.paginator.count == 1 %}{{ pagination_noun_singular }}{% else %}{{ pagination_noun_plural }}{% endif %}</span>
+
+    <div class="pagination-group">
+        {% if page_obj.has_next %}
+        <a class="pagination-link pagination-icon" href="?page={{ page_obj.next_page_number }}{{ pagination_qs }}" aria-label="Next page">&raquo;</a>
+        <a class="pagination-link pagination-icon" href="?page={{ page_obj.paginator.num_pages }}{{ pagination_qs }}" aria-label="Last page">&raquo;&raquo;</a>
+        {% else %}
+        <span class="pagination-link pagination-icon disabled" aria-hidden="true">&raquo;</span>
+        <span class="pagination-link pagination-icon disabled" aria-hidden="true">&raquo;&raquo;</span>
+        {% endif %}
+        <span class="pagination-group-label">Next</span>
+    </div>
+</div>
+{% endif %}

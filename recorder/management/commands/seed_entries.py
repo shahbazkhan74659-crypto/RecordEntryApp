@@ -1,3 +1,5 @@
+import random
+import string
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
@@ -5,25 +7,71 @@ from django.utils import timezone
 
 from recorder.models import Entry
 
-SEED_DATA = [
-    {"vehicle_number": "MH12AB1234", "loading_roll": 120, "net_kg_loading_roll": 8500, "weight_roll": 71, "net_kg_weight_roll": 8520, "workers": 4, "remark": "Loaded ahead of schedule."},
-    {"vehicle_number": "DL1CAB5678", "loading_roll": 95, "net_kg_loading_roll": 6200, "weight_roll": 65, "net_kg_weight_roll": 6175, "workers": 3, "remark": ""},
-    {"vehicle_number": "KA05MH4321", "loading_roll": 150, "net_kg_loading_roll": 10250, "weight_roll": 68, "net_kg_weight_roll": 10200, "workers": 5, "remark": "Driver requested early morning slot."},
-    {"vehicle_number": "GJ01XY9988", "loading_roll": 80, "net_kg_loading_roll": 5400, "weight_roll": 68, "net_kg_weight_roll": 5440, "workers": 3, "remark": "Recheck weight next time, seemed off."},
-    {"vehicle_number": "RJ14PQ4567", "loading_roll": 110, "net_kg_loading_roll": 7800, "weight_roll": 71, "net_kg_weight_roll": 7810, "workers": 4, "remark": ""},
-    {"vehicle_number": "UP32LM7890", "loading_roll": 200, "net_kg_loading_roll": 13400, "weight_roll": 67, "net_kg_weight_roll": 13400, "workers": 6, "remark": "Double trip day, watch worker fatigue."},
-    {"vehicle_number": "TN09KJ3456", "loading_roll": 60, "net_kg_loading_roll": 3900, "weight_roll": 65, "net_kg_weight_roll": 3900, "workers": 2, "remark": "Small load, priority customer."},
-    {"vehicle_number": "PB03RS6712", "loading_roll": 135, "net_kg_loading_roll": 9100, "weight_roll": 67, "net_kg_weight_roll": 9045, "workers": 4, "remark": ""},
-    {"vehicle_number": "HR26TU2345", "loading_roll": 175, "net_kg_loading_roll": 11800, "weight_roll": 67, "net_kg_weight_roll": 11725, "workers": 5, "remark": "Rolls slightly damp, noted for QC."},
-    {"vehicle_number": "MP09VW8901", "loading_roll": 90, "net_kg_loading_roll": 6000, "weight_roll": 67, "net_kg_weight_roll": 6030, "workers": 3, "remark": "Regular vendor, no issues."},
+TOTAL_RECORDS = 1000
+DAYS_SPAN = 365
+BATCH_SIZE = 500
+
+STATE_CODES = [
+    'MH', 'DL', 'KA', 'GJ', 'RJ', 'UP', 'TN', 'PB', 'HR', 'MP',
+    'WB', 'AP', 'TS', 'KL', 'OR', 'BR', 'CG', 'JH', 'UK', 'HP',
+    'CH', 'GA', 'AS', 'JK',
 ]
+
+REMARKS = [
+    '', '', '', '', '',
+    'Loaded ahead of schedule.',
+    'Driver requested early morning slot.',
+    'Recheck weight next time, seemed off.',
+    'Double trip day, watch worker fatigue.',
+    'Small load, priority customer.',
+    'Rolls slightly damp, noted for QC.',
+    'Regular vendor, no issues.',
+    'Delayed due to weather.',
+    'Weighbridge recalibrated before this entry.',
+    'Customer requested extra padding.',
+]
+
+
+def random_vehicle_number():
+    state = random.choice(STATE_CODES)
+    rto = random.randint(1, 99)
+    series = ''.join(random.choices(string.ascii_uppercase, k=random.randint(1, 3)))
+    number = random.randint(1, 9999)
+    return f"{state}{rto}{series}{number:04d}"
+
+
+def build_entry(date):
+    loading_roll = random.randint(40, 220)
+    per_roll_kg = random.randint(60, 75)
+    net_kg_loading_roll = int(loading_roll * per_roll_kg * random.uniform(0.97, 1.03))
+
+    weight_roll = random.randint(55, 80)
+    net_kg_weight_roll = int(loading_roll * weight_roll * random.uniform(0.97, 1.03))
+
+    return Entry(
+        date=date,
+        vehicle_number=random_vehicle_number(),
+        loading_roll=loading_roll,
+        net_kg_loading_roll=net_kg_loading_roll,
+        weight_roll=weight_roll,
+        net_kg_weight_roll=net_kg_weight_roll,
+        workers=random.randint(2, 8),
+        remark=random.choice(REMARKS),
+    )
 
 
 class Command(BaseCommand):
     help = "Seed the database with sample Truck Loading Entry records."
 
+    def add_arguments(self, parser):
+        parser.add_argument('--count', type=int, default=TOTAL_RECORDS, help='Number of entries to seed.')
+
     def handle(self, *args, **options):
+        count = options['count']
         today = timezone.localdate()
-        for offset, data in enumerate(SEED_DATA):
-            Entry.objects.create(date=today - timedelta(days=offset), **data)
-        self.stdout.write(self.style.SUCCESS(f"Seeded {len(SEED_DATA)} entries."))
+        entries = [
+            build_entry(today - timedelta(days=random.randint(0, DAYS_SPAN)))
+            for _ in range(count)
+        ]
+        Entry.objects.bulk_create(entries, batch_size=BATCH_SIZE)
+        self.stdout.write(self.style.SUCCESS(f"Seeded {len(entries)} entries."))

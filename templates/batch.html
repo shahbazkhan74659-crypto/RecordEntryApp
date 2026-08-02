@@ -9,6 +9,10 @@
         {% include "partials/admin_greeting.html" %}
     </div>
 
+    <div class="batch-search-bar">
+        {% include "partials/search_bar.html" with search_placeholder="e.g., Morning Dispatch" search_aria_label="Search by batch name" %}
+    </div>
+
     <div class="batch-grid">
         {% for b in batches %}
         <div class="batch-card" data-slug="{{ b.slug }}" data-name="{{ b.name }}" data-delete-url="{% url 'delete_batch' slug=b.slug %}" data-download-url="{% url 'download_entries_pdf' %}">
@@ -31,9 +35,11 @@
             </a>
         </div>
         {% empty %}
-        <p class="batch-empty">No batches yet. Select multiple entries on the Home page and click Group to create one.</p>
+        <p class="batch-empty">{{ empty_message }}</p>
         {% endfor %}
     </div>
+
+    {% include "partials/pagination.html" with pagination_noun_singular="batch" pagination_noun_plural="batches" %}
 
     {% include "partials/confirm_modal.html" %}
 {% endblock %}

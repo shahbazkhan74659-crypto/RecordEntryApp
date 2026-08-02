@@ -1,0 +1,16 @@
+{% comment %}
+Shared search input + button, paired with the search half of
+static/js/src/lib/date-search-filter.js's initDateSearchFilter(). Expected
+context variables:
+
+  current_search    - the active search text, or ""
+  search_placeholder  - input placeholder text (default: "e.g., Vehicle no.")
+  search_aria_label   - input aria-label (default: "Search by vehicle number")
+{% endcomment %}
+<input type="text" id="entry-search-input" name="entry-filter" class="entry-search-input" placeholder="{{ search_placeholder|default:"e.g., Vehicle no." }}" aria-label="{{ search_aria_label|default:"Search by vehicle number" }}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" readonly value="{{ current_search }}">
+<button type="button" id="entry-search-btn" class="entry-search-btn" aria-label="Search">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+</button>

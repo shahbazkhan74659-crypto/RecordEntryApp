@@ -138,6 +138,14 @@ LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
 
 
+# Home page "select all" + bulk delete/PDF-download post one POST field per
+# selected entry id. Django's default DATA_UPLOAD_MAX_NUMBER_FIELDS (1000)
+# is exceeded once there are that many entries, raising TooManyFieldsSent
+# before the view even runs. Single-user app with no untrusted form
+# submitters, so raising this is safe rather than a DoS concern.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 20000
+
+
 # Email
 # Used by Account Settings' "Change Email" OTP flow (recorder/views.py).
 # Real credentials go in .env (gitignored) — see .env.example. Until
