@@ -36,10 +36,12 @@ class Batch(models.Model):
 class Entry(models.Model):
     date = models.DateField(default=timezone.localdate)
     vehicle_number = models.CharField(max_length=15, validators=[vehicle_number_validator])
-    rolls = models.PositiveIntegerField()
-    workers = models.PositiveIntegerField()
-    net_kg = models.PositiveIntegerField()
-    remark = models.TextField(blank=True, default='')
+    loading_roll = models.PositiveIntegerField(verbose_name='Loading/Roll', null=True, blank=True)
+    net_kg_loading_roll = models.PositiveIntegerField(verbose_name='Net Kg (Loading/Roll)', null=True, blank=True)
+    weight_roll = models.PositiveIntegerField(verbose_name='Weight/Roll', null=True, blank=True)
+    net_kg_weight_roll = models.PositiveIntegerField(verbose_name='Net Kg (Weight/Roll)', null=True, blank=True)
+    workers = models.PositiveIntegerField(null=True, blank=True)
+    remark = models.TextField(blank=True, null=True)
     batches = models.ManyToManyField(Batch, blank=True, related_name='entries')
 
     class Meta:

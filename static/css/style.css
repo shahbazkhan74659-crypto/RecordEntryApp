@@ -38,7 +38,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 1rem 0;
-    max-width: 1040px;
+    max-width: 1320px;
 }
 
 @media (max-width: 768px) {
@@ -239,8 +239,8 @@ h1, h2, h3 {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.5rem 1rem;
-    margin-left: -60px;
-    margin-right: -60px;
+    margin-left: -200px;
+    margin-right: -200px;
     margin-bottom: 1.5rem;
 }
 
@@ -261,17 +261,117 @@ h1, h2, h3 {
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
     overflow-x: auto;
     overflow-y: hidden;
-    margin-left: -60px;
-    margin-right: -60px;
+    margin-left: -200px;
+    margin-right: -200px;
 }
 
 .new-entry-bar {
     display: flex;
-    justify-content: flex-end;
-    margin-left: -60px;
-    margin-right: -60px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-left: -200px;
+    margin-right: -200px;
     margin-top: -0.75rem;
     margin-bottom: 1rem;
+}
+
+.new-entry-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.date-filter {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Kept in the layout (not display:none) so showPicker()/focus() still work
+   from date-filter-btn's click handler — only visually hidden, with the
+   visible calendar icon button doing the actual opening. */
+.date-filter-input-hidden {
+    position: absolute;
+    opacity: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    pointer-events: none;
+}
+
+.date-filter-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 2px solid var(--color-primary);
+    border-radius: var(--radius);
+    background: var(--color-primary);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.date-filter-btn:hover {
+    background: var(--color-primary-dark);
+}
+
+.date-filter-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    padding: 0 1rem;
+    border: none;
+    border-radius: var(--radius);
+    background: #e2e8f0;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.date-filter-clear:hover {
+    background: #cbd5e1;
+}
+
+.entry-search-input {
+    height: 2.75rem;
+    width: 240px;
+    max-width: 100%;
+    padding: 0 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    color: var(--color-text);
+    background: #fff;
+    margin-left: 1.5rem;
+}
+
+.entry-search-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.entry-search-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--color-primary);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.entry-search-btn:hover {
+    background: var(--color-primary-dark);
 }
 
 @media (max-width: 768px) {
@@ -403,7 +503,8 @@ tbody tr.selected:hover {
 
 .btn-edit,
 .btn-group,
-.btn-delete {
+.btn-delete,
+.btn-download {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -440,8 +541,17 @@ tbody tr.selected:hover {
     background: #b91c1c;
 }
 
+.btn-download {
+    background: #059669;
+}
+
+.btn-download:hover {
+    background: #047857;
+}
+
 .btn-edit:disabled,
-.btn-group:disabled {
+.btn-group:disabled,
+.btn-download:disabled {
     opacity: 0.35;
     cursor: not-allowed;
 }
@@ -575,6 +685,32 @@ tbody tr.selected:hover {
     margin-bottom: 1.5rem;
 }
 
+.save-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+}
+
+.save-option-btn {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: #fff;
+    color: var(--color-text);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.save-option-btn:hover {
+    background: #eef2ff;
+    border-color: var(--color-primary);
+}
+
 .btn {
     display: inline-block;
     padding: 0.5rem 1rem;
@@ -589,6 +725,14 @@ tbody tr.selected:hover {
 
 .btn:hover {
     background: var(--color-primary-dark);
+}
+
+.btn-danger {
+    background: #dc2626;
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
 }
 
 form input,

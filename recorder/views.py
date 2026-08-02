@@ -1,4 +1,5 @@
 import secrets
+from io import BytesIO
 
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
@@ -13,9 +14,16 @@ from django.core.mail import send_mail
 from django.core.validators import validate_email
 from django.db.models import Count, F, Window
 from django.db.models.functions import RowNumber
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .forms import EntryForm
 from .models import Batch, Entry
@@ -25,6 +33,16 @@ OTP_RESEND_COOLDOWN_SECONDS = 60
 OTP_MAX_ATTEMPTS = 5
 EMAIL_REVERT_TTL_SECONDS = 30 * 60
 RESET_TOKEN_TTL_SECONDS = 10 * 60
+
+# "Last N" scopes for download_entries_pdf, mapped to the slice size taken
+# off Entry.objects.order_by('-id') (None means no limit, i.e. all records).
+PDF_SCOPE_LIMITS = {'all': None, 'last_10': 10, 'last_50': 50, 'last_100': 100}
+
+
+def _fmt_pdf_number(value, suffix=''):
+    """Renders an optional numeric Entry field for the PDF table: '—' when
+    left blank (None), otherwise the value with the given unit suffix."""
+    return '—' if value is None else f'{value}{suffix}'
 
 
 def _send_otp_email(otp_key, cooldown_key, cache_payload, recipient_email, subject):
@@ -217,6 +235,100 @@ def create_batch(request):
     entries = Entry.objects.filter(pk__in=ids)
     new_batch.entries.add(*entries)
     return JsonResponse({'batch_id': new_batch.id, 'grouped': entries.count()})
+
+
+@login_required
+@require_POST
+def download_entries_pdf(request):
+    scope = request.POST.get('scope', '')
+    batch_obj = None
+
+    if scope == 'choose':
+        ids = [i for i in request.POST.getlist('ids') if i.isdigit()]
+        if not ids:
+            return JsonResponse({'error': 'Select at least one entry to download.'}, status=400)
+        # Reordered to match the home table's own display order ('-id') rather
+        # than the order ids were selected in, so e.g. picking the 1st and 3rd
+        # visible rows always renders as rows 1 and 2 in the PDF, in that order.
+        entries = Entry.objects.filter(pk__in=ids).order_by('-id')
+    elif scope == 'batch':
+        batch_obj = get_object_or_404(Batch, slug=request.POST.get('slug', ''))
+        entries = batch_obj.entries.order_by('-date', '-id')
+    elif scope in PDF_SCOPE_LIMITS:
+        entries = Entry.objects.order_by('-id')
+        limit = PDF_SCOPE_LIMITS[scope]
+        if limit is not None:
+            entries = entries[:limit]
+    else:
+        return JsonResponse({'error': 'Invalid scope.'}, status=400)
+
+    entries = list(entries)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4), title='Truck Loading Entries',
+        leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=16 * mm,
+    )
+    styles = getSampleStyleSheet()
+    # Plain strings don't wrap inside a Table cell, and these headers are too
+    # wide for a column narrow enough to fit 8 columns on the page — wrapped
+    # in Paragraphs so long headers like "Net Kg (Loading/Roll)" break onto a
+    # second line instead of overflowing into the next column.
+    header_style = ParagraphStyle(
+        'PdfTableHeader', parent=styles['Normal'], textColor=colors.white,
+        fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_CENTER,
+    )
+
+    rows = [[
+        Paragraph(text, header_style) for text in (
+            'S.No', 'Date', 'Vehicle Number', 'Loading/Roll', 'Net Kg (Loading/Roll)',
+            'Weight/Roll', 'Net Kg (Weight/Roll)', 'Workers',
+        )
+    ]]
+    for index, entry in enumerate(entries, start=1):
+        rows.append([
+            str(index),
+            entry.date.strftime('%d-%m-%Y'),
+            entry.vehicle_number,
+            _fmt_pdf_number(entry.loading_roll),
+            _fmt_pdf_number(entry.net_kg_loading_roll, ' kg'),
+            _fmt_pdf_number(entry.weight_roll),
+            _fmt_pdf_number(entry.net_kg_weight_roll, ' kg'),
+            _fmt_pdf_number(entry.workers),
+        ])
+
+    table = Table(rows, repeatRows=1, colWidths=[35, 65, 100, 65, 85, 65, 85, 55])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#16233d')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+
+    record_word = 'record' if len(entries) == 1 else 'records'
+    title = f'Batch — {batch_obj.name}' if batch_obj else 'Truck Loading Entries'
+    elements = [
+        Paragraph(title, styles['Title']),
+        Paragraph(
+            f'Generated on {timezone.localdate().strftime("%d-%m-%Y")} — {len(entries)} {record_word}',
+            styles['Normal'],
+        ),
+        Spacer(1, 10),
+        table,
+    ]
+    doc.build(elements)
+
+    scope_part = batch_obj.slug if batch_obj else scope
+    filename = f'truck-entries-{scope_part}-{timezone.localdate().isoformat()}.pdf'
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required

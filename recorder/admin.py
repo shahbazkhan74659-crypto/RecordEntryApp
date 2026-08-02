@@ -5,7 +5,10 @@ from .models import Batch, Entry
 
 @admin.register(Entry)
 class EntryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'date', 'vehicle_number', 'rolls', 'workers', 'net_kg', 'remark', 'batch_names')
+    list_display = (
+        'id', 'date', 'vehicle_number', 'loading_roll', 'net_kg_loading_roll',
+        'weight_roll', 'net_kg_weight_roll', 'workers', 'remark', 'batch_names',
+    )
     list_filter = ('date', 'batches')
     search_fields = ('vehicle_number', 'remark')
 

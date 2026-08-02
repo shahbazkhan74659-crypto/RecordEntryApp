@@ -11,6 +11,7 @@ urlpatterns = [
     path('entries/delete/', views.delete_entries, name='delete_entries'),
     path('entries/<int:pk>/edit/', views.edit_entry, name='edit_entry'),
     path('entries/group/', views.create_batch, name='create_batch'),
+    path('entries/download-pdf/', views.download_entries_pdf, name='download_entries_pdf'),
     path('account/change-username/', views.change_username, name='change_username'),
     path('account/change-password/', views.change_password, name='change_password'),
     path('account/change-email/request-otp/', views.change_email_request_otp, name='change_email_request_otp'),

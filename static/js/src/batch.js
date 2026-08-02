@@ -1,5 +1,6 @@
 import { getCookie } from "./lib/cookies.js";
 import { confirmDialog } from "./lib/confirm-dialog.js";
+import { downloadPdf } from "./lib/download-pdf.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const grid = document.querySelector(".batch-grid");
@@ -21,6 +22,17 @@ document.addEventListener("DOMContentLoaded", () => {
       closeAllMenus();
       menu.classList.toggle("open", !isOpen);
       menuBtn.setAttribute("aria-expanded", String(!isOpen));
+      return;
+    }
+
+    const saveBtn = event.target.closest(".batch-card-menu-save");
+    if (saveBtn) {
+      event.preventDefault();
+      const card = saveBtn.closest(".batch-card");
+      const { slug, downloadUrl } = card.dataset;
+      closeAllMenus();
+
+      await downloadPdf(downloadUrl, { scope: "batch", slug });
       return;
     }
 
