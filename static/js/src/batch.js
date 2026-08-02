@@ -58,7 +58,8 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       if (!response.ok) {
-        window.alert("Could not delete the batch. Please try again.");
+        const data = await response.json().catch(() => null);
+        window.showToast(data?.error || "Could not delete the batch. Please try again.", "error");
         return;
       }
 

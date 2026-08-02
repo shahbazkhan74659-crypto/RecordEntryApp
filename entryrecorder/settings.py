@@ -28,7 +28,11 @@ load_dotenv(BASE_DIR / '.env')
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Env-controlled (see .env / .env.example) rather than hardcoded, so a real
+# deployment can't accidentally ship with debug tracebacks/local variables
+# exposed just because nobody remembered to flip this line by hand. Defaults
+# to False (safe) if unset; local dev sets DEBUG=True in .env.
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = []
 
@@ -159,3 +163,22 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+# Production-only transport/cookie hardening
+# Tied to `not DEBUG` (now env-controlled above) rather than always-on, so
+# local dev over plain HTTP (DEBUG=True) isn't broken by cookies/redirects
+# that require HTTPS. No hostname is hardcoded here since there's no real
+# deployment host yet — see ALLOWED_HOSTS above. NOTE: whoever sets DEBUG=
+# False for a real deployment must also have actual HTTPS termination in
+# place first (SECURE_SSL_REDIRECT=True otherwise causes a redirect loop),
+# and SECURE_PROXY_SSL_HEADER must only be trusted if a reverse proxy that
+# actually sets/strips X-Forwarded-Proto sits in front of this app —
+# revisit this line specifically once the real deployment topology is known.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') if not DEBUG else None
+SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG

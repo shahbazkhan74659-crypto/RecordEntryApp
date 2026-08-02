@@ -1,5 +1,7 @@
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models import F, Window
+from django.db.models.functions import RowNumber
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -54,3 +56,19 @@ class Entry(models.Model):
     def save(self, *args, **kwargs):
         self.vehicle_number = self.vehicle_number.upper()
         super().save(*args, **kwargs)
+
+
+def entries_with_serial_number():
+    """The full, unfiltered Entry queryset annotated with each row's stable,
+    global serial_number (rank by creation order, ascending id) — the same
+    real S.No the home page's own table and the PDF export show. Single
+    shared source for this query, used by recorder.views (home,
+    download_entries_pdf) and recorder.tests. Must always be computed over
+    the *entire* table before any further .filter()/slicing: Window() ranks
+    against whatever rows survive the SQL WHERE clause, which runs before
+    window functions do, so annotating after a .filter() would rank only
+    within the filtered subset instead of each entry's real, global
+    serial number."""
+    return Entry.objects.annotate(
+        serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
+    )

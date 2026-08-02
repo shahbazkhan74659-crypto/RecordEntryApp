@@ -28,20 +28,43 @@ export function bindModalDismiss(modal, onDismiss) {
 }
 
 // Shared body-scroll lock so page content behind a fixed modal-overlay
-// can't be touch-scrolled while a modal is open. Reference-counted so it
-// stays correct even if two lock calls somehow overlap (e.g. a caller
-// re-opening before a previous close's unlock has run); restores the
-// exact previous inline value on full unlock rather than assuming "".
+// can't be scrolled while a modal is open. Reference-counted so it stays
+// correct even if two lock calls somehow overlap (e.g. the Save+Range
+// stacked-modal case on home.js, where a second lock can fire before the
+// first has been released) — only the outermost lock/unlock pair actually
+// touches the DOM.
+//
+// Plain `overflow: hidden` on <body> (the original approach here) stops
+// desktop mouse-wheel scrolling but is well known to NOT reliably stop
+// touch-drag scrolling of the background page on iOS Safari. The standard
+// workaround is used instead: pin the body in place with `position: fixed`
+// (which removes it from the normal scrollable flow entirely, on every
+// browser) after recording the current scroll offset, then restore both
+// the position and the exact scroll offset on unlock so the page doesn't
+// visibly jump.
 let lockCount = 0;
-let previousBodyOverflow = "";
+let savedScrollY = 0;
 
 export function lockBodyScroll() {
-  if (lockCount === 0) previousBodyOverflow = document.body.style.overflow;
+  if (lockCount === 0) {
+    savedScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${savedScrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+  }
   lockCount += 1;
-  document.body.style.overflow = "hidden";
 }
 
 export function unlockBodyScroll() {
   lockCount = Math.max(0, lockCount - 1);
-  if (lockCount === 0) document.body.style.overflow = previousBodyOverflow;
+  if (lockCount === 0) {
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.left = "";
+    document.body.style.right = "";
+    document.body.style.width = "";
+    window.scrollTo(0, savedScrollY);
+  }
 }

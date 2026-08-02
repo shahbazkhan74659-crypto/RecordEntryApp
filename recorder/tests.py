@@ -2,12 +2,12 @@ import re
 from io import BytesIO
 
 from django.contrib.auth.models import User
-from django.db.models import F, Window
-from django.db.models.functions import RowNumber
+from django.core.cache import cache
 from django.test import TestCase
 from pypdf import PdfReader
 
-from .models import Batch, Entry
+from .models import Batch, Entry, entries_with_serial_number
+from .views import CHECK_USERNAME_MAX_ATTEMPTS, FORGOT_PASSWORD_EMAIL_MAX_ATTEMPTS, LOGIN_MAX_ATTEMPTS
 
 
 def build_after_100_ranges(count):
@@ -28,10 +28,11 @@ def real_serial_numbers(start, end):
     """The home page's own S.No for the entries a 'last_N'/'choose'/'all' PDF
     scope would export for [start, end] (1-based, inclusive) — a stable rank
     by creation order (ascending id), sliced off the '-id' (newest-first)
-    display order. Ground truth those scopes' PDF S.No column must match."""
-    base_qs = Entry.objects.annotate(
-        serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
-    )
+    display order. Ground truth those scopes' PDF S.No column must match.
+    Built on the same entries_with_serial_number() (models.py) the app
+    itself uses, rather than a separately-maintained copy of the
+    Window(RowNumber()) query."""
+    base_qs = entries_with_serial_number()
     return list(base_qs.order_by('-id')[start - 1:end].values_list('serial_number', flat=True))
 
 
@@ -289,11 +290,7 @@ class HomePagePaginationTests(TestCase):
         self.assertEqual(len(page3_ids), 5)  # 65 - 30 - 30
 
     def test_sno_is_the_real_global_serial_number_even_when_filtered(self):
-        serial_by_id = dict(
-            Entry.objects.annotate(
-                serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
-            ).values_list('id', 'serial_number')
-        )
+        serial_by_id = dict(entries_with_serial_number().values_list('id', 'serial_number'))
         html = self.client.get('/?q=MH').content.decode()
         rows = extract_row_id_sno_pairs(html)
         self.assertTrue(rows, "search must return at least one row")
@@ -452,3 +449,120 @@ class BatchNameSearchTests(TestCase):
         search_bar_idx = html.index('id="entry-search-input"')
         grid_idx = html.index('class="batch-grid"')
         self.assertTrue(page_header_idx < search_bar_idx < grid_idx)
+
+
+class CheckUsernameRateLimitTests(TestCase):
+    """check_username (recorder/views.py) is unauthenticated (runs
+    pre-login, used by the Forgot Password flow) and would otherwise be an
+    unthrottled username-enumeration oracle — rate-limited per-IP
+    (CHECK_USERNAME_MAX_ATTEMPTS within CHECK_USERNAME_ATTEMPTS_TTL_SECONDS)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='ratelimituser', password='pw12345!Strong')
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_requests_within_the_cap_still_resolve_normally(self):
+        for _ in range(CHECK_USERNAME_MAX_ATTEMPTS):
+            response = self.client.post('/forgot-password/check-username/', {'username': 'ratelimituser'})
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()['valid'])
+
+    def test_requests_beyond_the_cap_are_throttled(self):
+        for _ in range(CHECK_USERNAME_MAX_ATTEMPTS):
+            self.client.post('/forgot-password/check-username/', {'username': 'ratelimituser'})
+        # Even a genuinely valid username is now rejected — proving the
+        # throttle itself, not a real lookup miss, is what's blocking this.
+        response = self.client.post('/forgot-password/check-username/', {'username': 'ratelimituser'})
+        self.assertEqual(response.status_code, 429)
+        self.assertFalse(response.json()['valid'])
+
+
+class ForgotPasswordEmailGuessRateLimitTests(TestCase):
+    """forgot_password_request_otp's wrong-email branch is throttled the
+    same way OTP verification already is (FORGOT_PASSWORD_EMAIL_MAX_ATTEMPTS
+    within FORGOT_PASSWORD_EMAIL_ATTEMPTS_TTL_SECONDS), keyed by user.pk —
+    otherwise a known username's registered email could be brute-forced
+    unauthenticated with no limit, since the cooldown in _send_otp_email is
+    only ever reached after a correct email match."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(
+            username='emailguesstarget', password='pw12345!Strong', email='real@example.com',
+        )
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_wrong_email_guess_returns_the_generic_error(self):
+        response = self.client.post(
+            '/forgot-password/request-otp/', {'username': 'emailguesstarget', 'email': 'wrong@example.com'},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['error'], 'Enter Correct Email')
+
+    def test_guesses_beyond_the_cap_are_throttled_with_the_same_error(self):
+        for _ in range(FORGOT_PASSWORD_EMAIL_MAX_ATTEMPTS):
+            self.client.post(
+                '/forgot-password/request-otp/', {'username': 'emailguesstarget', 'email': 'wrong@example.com'},
+            )
+        # Even the *correct* email is now rejected with the exact same
+        # generic error — proving the throttle, not just another wrong
+        # guess, is what's blocking this, and that it can't be told apart
+        # from a mismatch by the response.
+        response = self.client.post(
+            '/forgot-password/request-otp/', {'username': 'emailguesstarget', 'email': 'real@example.com'},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['error'], 'Enter Correct Email')
+
+
+class LoginLockoutTests(TestCase):
+    """ThrottledLoginView (recorder/views.py, wired in as the /login/ view
+    in entryrecorder/urls.py) adds a minimal cache-backed lockout on top of
+    Django's stock LoginView — LOGIN_MAX_ATTEMPTS wrong passwords within
+    LOGIN_LOCKOUT_SECONDS locks out further attempts for that username,
+    including a subsequent correct one, since this project has no
+    django-axes or similar."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='loginlockouttarget', password='CorrectHorse123!')
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_correct_password_still_logs_in_under_the_cap(self):
+        response = self.client.post('/login/', {'username': 'loginlockouttarget', 'password': 'CorrectHorse123!'})
+        self.assertRedirects(response, '/')
+
+    def test_locks_out_after_max_failed_attempts(self):
+        for _ in range(LOGIN_MAX_ATTEMPTS):
+            self.client.post('/login/', {'username': 'loginlockouttarget', 'password': 'wrong'})
+
+        # Even the correct password is now rejected while locked out: no
+        # redirect (a real login always redirects to LOGIN_REDIRECT_URL) and
+        # the session stays unauthenticated. login.html now surfaces the
+        # lockout's own distinct message rather than the generic "didn't
+        # match" text used for an ordinary wrong password.
+        response = self.client.post('/login/', {'username': 'loginlockouttarget', 'password': 'CorrectHorse123!'})
+        self.assertEqual(response.status_code, 200)  # re-rendered login form, not a redirect
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+        self.assertContains(response, 'Too many failed login attempts')
+
+    def test_a_successful_login_clears_the_attempt_counter(self):
+        self.client.post('/login/', {'username': 'loginlockouttarget', 'password': 'wrong'})
+        response = self.client.post('/login/', {'username': 'loginlockouttarget', 'password': 'CorrectHorse123!'})
+        self.assertRedirects(response, '/')

@@ -7,11 +7,22 @@ import { getCookie } from "./cookies.js";
 export async function postForm(url, fields) {
   const body = new URLSearchParams();
   Object.entries(fields).forEach(([key, value]) => body.append(key, value));
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "X-CSRFToken": getCookie("csrftoken") },
-    body,
-  });
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "X-CSRFToken": getCookie("csrftoken") },
+      body,
+    });
+  } catch {
+    // fetch() itself rejected (offline, DNS failure, etc.) rather than
+    // resolving with an HTTP error response — normalized into the same
+    // { ok, data } shape callers already handle instead of an unhandled
+    // promise rejection.
+    return { ok: false, data: { error: "Network error. Please check your connection and try again." } };
+  }
+
   const data = await response.json().catch(() => ({}));
   return { ok: response.ok, data };
 }

@@ -185,6 +185,14 @@ main.container {
     min-height: calc(100vh - 140px);
 }
 
+/* Toggled by static/js/src/home.js whenever #selection-bar is visible, so
+   the fixed, bottom-hovering selection bar doesn't sit on top of the last
+   table row(s)/pagination bar on short mobile viewports — see
+   .selection-bar below for the bar's own size/position. */
+main.container.has-selection-bar {
+    padding-bottom: 8rem;
+}
+
 /* Messages (bottom-right toast popups) */
 .messages {
     position: fixed;
@@ -286,6 +294,7 @@ h1, h2, h3 {
     position: relative;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.5rem;
 }
 
@@ -409,8 +418,12 @@ h1, h2, h3 {
 }
 
 .pagination-link.pagination-icon {
-    padding: 0.5rem 0.85rem;
-    min-width: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    padding: 0 0.85rem;
     text-align: center;
 }
 
@@ -447,6 +460,16 @@ h1, h2, h3 {
 
     .batch-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* .date-filter now wraps (see base rule above) instead of forcing
+       horizontal scroll on ~375-414px phones — the fixed 240px width and
+       1.5rem left margin (meant to visually separate the date-filter
+       cluster from the search bar on one wide desktop row) both need to
+       shrink once the search bar is likely wrapping onto its own line. */
+    .entry-search-input {
+        width: 200px;
+        margin-left: 0;
     }
 }
 
@@ -543,6 +566,9 @@ tbody tr.selected:hover {
     z-index: 100;
     display: flex;
     align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: calc(100vw - 2rem);
     gap: 1.25rem;
     padding: 0.85rem 1.5rem;
     border-radius: 999px;
@@ -568,6 +594,18 @@ tbody tr.selected:hover {
 .selection-count {
     font-size: 0.9rem;
     color: #cbd5e1;
+}
+
+/* Groups the 4 action buttons apart from .selection-count so, once
+   .selection-bar's own max-width forces a wrap on narrow phones, the count
+   cleanly lands on its own line above a centered row of buttons instead of
+   an arbitrary mid-button wrap. */
+.selection-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 1.25rem;
 }
 
 .btn-edit,
@@ -913,8 +951,8 @@ form label {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
     padding: 0;
     background: none;
     border: none;
@@ -931,7 +969,7 @@ form label {
 .batch-card-menu {
     display: none;
     position: absolute;
-    top: 3.1rem;
+    top: 3.35rem;
     right: 0.6rem;
     z-index: 3;
     min-width: 130px;
@@ -949,7 +987,7 @@ form label {
 .batch-card-menu-item {
     display: block;
     width: 100%;
-    padding: 0.55rem 0.85rem;
+    padding: 0.75rem 0.85rem;
     background: none;
     border: none;
     font-size: 0.875rem;
@@ -965,6 +1003,10 @@ form label {
 
 .batch-card-menu-delete {
     color: #dc2626;
+    /* Small separation from the item above (particularly "Save") so a
+       touch mis-tap near the shared edge doesn't land on this destructive
+       action. */
+    border-top: 1px solid var(--color-border);
 }
 
 .batch-card-menu-delete:hover {
@@ -1056,13 +1098,24 @@ form label {
     color: #fff;
 }
 
+/* min-height (not height) + overflow-y: auto (not hidden): keeps the
+   centered, non-scrolling feel in the common case where content fits, but
+   never hard-clips content that doesn't (e.g. the form-error banner above
+   the login form, combined with a short/landscape mobile viewport) — the
+   page grows and becomes scrollable instead. The 100dvh line intentionally
+   follows the 100vh fallback (not replaces it): older browsers without
+   dvh support just use the 100vh value above it, while browsers that do
+   support dvh use it to avoid iOS Safari's dynamic address-bar chrome
+   clipping content sized against the wrong (chrome-hidden) 100vh value. */
 .login-page {
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-y: auto;
 }
 
 .login-page main.container {
-    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1133,13 +1186,15 @@ form label {
 }
 
 /* Same short-viewport safeguard as account-settings above: without this,
-   a tall modal (the add-records table on batch_edit, or the multi-step
-   forgot-password flow on the login page) can exceed a short/landscape
-   mobile viewport with no way to reach its own Cancel/Done or scroll
-   past its own title, since .modal-overlay itself doesn't scroll. */
+   a tall modal (the add-records table on batch_edit, the multi-step
+   forgot-password flow on the login page, or the Save/Save-by-Range PDF
+   export menus on home) can exceed a short/landscape mobile viewport with
+   no way to reach its own Cancel/Done or scroll past its own title, since
+   .modal-overlay itself doesn't scroll. */
 #add-records-modal .modal-card,
 #forgot-password-modal .modal-card,
-#range-modal .modal-card {
+#range-modal .modal-card,
+#save-modal .modal-card {
     max-height: 90vh;
     overflow-y: auto;
 }

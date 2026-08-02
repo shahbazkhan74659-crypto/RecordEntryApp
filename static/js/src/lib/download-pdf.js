@@ -16,11 +16,20 @@ export async function downloadPdf(downloadUrl, params) {
     }
   });
 
-  const response = await fetch(downloadUrl, {
-    method: "POST",
-    headers: { "X-CSRFToken": getCookie("csrftoken") },
-    body,
-  });
+  let response;
+  try {
+    response = await fetch(downloadUrl, {
+      method: "POST",
+      headers: { "X-CSRFToken": getCookie("csrftoken") },
+      body,
+    });
+  } catch {
+    // fetch() itself rejected (offline, DNS failure, etc.) rather than
+    // resolving with an HTTP error response — handled the same way a JSON
+    // error body would be below, instead of an unhandled promise rejection.
+    window.alert("Network error. Please check your connection and try again.");
+    return false;
+  }
 
   if (!response.ok) {
     const data = await response.json().catch(() => null);

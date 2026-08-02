@@ -20,7 +20,11 @@
             <h1>Login</h1>
 
             {% if form.errors %}
-                <p class="form-error">Your username and password didn't match. Please try again.</p>
+                {% if 'Too many failed login attempts' in form.non_field_errors.0 %}
+                    <p class="form-error">{{ form.non_field_errors.0 }}</p>
+                {% else %}
+                    <p class="form-error">Your username and password didn't match. Please try again.</p>
+                {% endif %}
             {% endif %}
 
             <form id="login-form" method="post" novalidate autocomplete="off">

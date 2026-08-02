@@ -2,9 +2,11 @@ import secrets
 from datetime import date as date_cls
 from io import BytesIO
 from urllib.parse import urlencode
+from xml.sax.saxutils import escape as xml_escape
 
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.validators import UnicodeUsernameValidator
@@ -15,8 +17,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.mail import send_mail
 from django.core.validators import validate_email
-from django.db.models import Count, F, Window
-from django.db.models.functions import RowNumber
+from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -29,13 +30,31 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .forms import EntryForm
-from .models import Batch, Entry
+from .models import Batch, Entry, entries_with_serial_number
 
 OTP_TTL_SECONDS = 5 * 60
 OTP_RESEND_COOLDOWN_SECONDS = 60
 OTP_MAX_ATTEMPTS = 5
 EMAIL_REVERT_TTL_SECONDS = 30 * 60
 RESET_TOKEN_TTL_SECONDS = 10 * 60
+
+# check_username (unauthenticated, pre-login) has no per-account cache key
+# available yet -- that's what it's used to discover -- so it's throttled
+# per-IP instead, same cache-backed attempt-cap style as the OTP flows below.
+CHECK_USERNAME_MAX_ATTEMPTS = 20
+CHECK_USERNAME_ATTEMPTS_TTL_SECONDS = 5 * 60
+
+# Throttles wrong-email guesses against a known username on
+# forgot_password_request_otp, the same way OTP_MAX_ATTEMPTS already
+# throttles OTP guesses -- keyed by user.pk once a real user is resolved.
+FORGOT_PASSWORD_EMAIL_MAX_ATTEMPTS = 5
+FORGOT_PASSWORD_EMAIL_ATTEMPTS_TTL_SECONDS = 10 * 60
+
+# Basic lockout for Django's built-in LoginView (see ThrottledLoginView
+# below) -- this project has no django-axes or similar, so this is a
+# minimal cache-backed attempt cap in the same style as the OTP flows.
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_LOCKOUT_SECONDS = 15 * 60
 
 # "Last N" scopes for download_entries_pdf, mapped to the slice size taken
 # off Entry.objects.order_by('-id') (None means no limit, i.e. all records).
@@ -46,6 +65,24 @@ def _fmt_pdf_number(value, suffix=''):
     """Renders an optional numeric Entry field for the PDF table: '—' when
     left blank (None), otherwise the value with the given unit suffix."""
     return '—' if value is None else f'{value}{suffix}'
+
+
+def _serial_by_id():
+    """id -> real, global serial_number lookup, built from
+    entries_with_serial_number() (models.py). Shared by home() and
+    download_entries_pdf(): both need to look up an already-fetched
+    entry's real S.No by id rather than annotating their own (possibly
+    filtered) queryset directly — see entries_with_serial_number()'s
+    docstring for why."""
+    return dict(entries_with_serial_number().values_list('id', 'serial_number'))
+
+
+def _digit_ids(request):
+    """Shared by delete_entries, create_batch, download_entries_pdf
+    ('choose' scope), and batch_edit: parses the repeated 'ids' POST field
+    into a list of numeric-only id strings, silently dropping anything
+    non-digit rather than raising."""
+    return [i for i in request.POST.getlist('ids') if i.isdigit()]
 
 
 def _send_otp_email(otp_key, cooldown_key, cache_payload, recipient_email, subject):
@@ -106,6 +143,45 @@ def _check_otp(otp_key, is_mismatch):
     return None, entry
 
 
+class ThrottledLoginView(auth_views.LoginView):
+    """Wraps Django's stock LoginView with a minimal cache-backed lockout
+    (LOGIN_MAX_ATTEMPTS within LOGIN_LOCKOUT_SECONDS) — this project has no
+    django-axes or similar, so this follows the same cache cooldown/
+    attempt-cap style already used throughout this file for the OTP flows.
+    Keyed by the submitted username (lowercased, matching this app's
+    __iexact convention elsewhere) rather than IP: a shared IP (e.g. NAT)
+    shouldn't lock out every user behind it, and there's only ever one real
+    account here to protect regardless.
+    """
+
+    @staticmethod
+    def _attempts_key(username):
+        return f'login_attempts:{username.strip().lower()}'
+
+    def post(self, request, *args, **kwargs):
+        username = request.POST.get('username', '')
+        if username:
+            key = self._attempts_key(username)
+            if cache.get(key, 0) >= LOGIN_MAX_ATTEMPTS:
+                form = self.get_form()
+                form.add_error(None, 'Too many failed login attempts. Please try again in a few minutes.')
+                return self.render_to_response(self.get_context_data(form=form))
+        return super().post(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        username = self.request.POST.get('username', '')
+        if username:
+            key = self._attempts_key(username)
+            cache.set(key, cache.get(key, 0) + 1, LOGIN_LOCKOUT_SECONDS)
+        return super().form_invalid(form)
+
+    def form_valid(self, form):
+        username = self.request.POST.get('username', '')
+        if username:
+            cache.delete(self._attempts_key(username))
+        return super().form_valid(form)
+
+
 HOME_PAGE_SIZE = 30
 
 
@@ -148,18 +224,14 @@ def home(request):
 
     # serial_number is each entry's stable rank by creation order (ascending
     # id) — the same real, global S.No the PDF export uses (see
-    # download_entries_pdf's identically-named serial_by_id dict). Backfilled
-    # onto just this page's ~25 already-fetched rows via a fresh, *unfiltered*
-    # ranking rather than annotating the filtered/paginated queryset directly:
-    # Window(RowNumber()) ranks against whatever rows survive the SQL WHERE
-    # clause, which runs before window functions do, so annotating after a
-    # date/search .filter() would rank only within the filtered subset
-    # instead of each entry's real, global serial number.
-    serial_by_id = dict(
-        Entry.objects.annotate(
-            serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
-        ).values_list('id', 'serial_number')
-    )
+    # download_entries_pdf's use of the same _serial_by_id() helper).
+    # Backfilled onto just this page's ~25 already-fetched rows via a fresh,
+    # *unfiltered* ranking rather than annotating the filtered/paginated
+    # queryset directly: Window(RowNumber()) ranks against whatever rows
+    # survive the SQL WHERE clause, which runs before window functions do,
+    # so annotating after a date/search .filter() would rank only within the
+    # filtered subset instead of each entry's real, global serial number.
+    serial_by_id = _serial_by_id()
     for entry in page_obj.object_list:
         entry.serial_number = serial_by_id[entry.id]
 
@@ -232,7 +304,7 @@ def batch_edit(request, slug):
 
     if request.method == 'POST':
         action = request.POST.get('action')
-        ids = [i for i in request.POST.getlist('ids') if i.isdigit()]
+        ids = _digit_ids(request)
 
         if action == 'rename':
             name = request.POST.get('name', '').strip()
@@ -249,6 +321,8 @@ def batch_edit(request, slug):
             batch_obj.entries.remove(*entries_to_remove)
             if removed:
                 messages.success(request, f"Removed {removed} {'entry' if removed == 1 else 'entries'} from the batch.")
+            else:
+                messages.error(request, "Select at least one entry to remove.")
 
         elif action == 'add':
             entries_to_add = Entry.objects.filter(pk__in=ids).exclude(batches=batch_obj)
@@ -256,6 +330,8 @@ def batch_edit(request, slug):
             batch_obj.entries.add(*entries_to_add)
             if added:
                 messages.success(request, f"Added {added} {'entry' if added == 1 else 'entries'} to the batch.")
+            else:
+                messages.error(request, "Select at least one entry to add.")
 
         return redirect('batch_edit', slug=batch_obj.slug)
 
@@ -309,7 +385,7 @@ def edit_entry(request, pk):
 @login_required
 @require_POST
 def delete_entries(request):
-    ids = [i for i in request.POST.getlist('ids') if i.isdigit()]
+    ids = _digit_ids(request)
     if not ids:
         return JsonResponse({'error': 'No ids provided.'}, status=400)
     deleted_count, _ = Entry.objects.filter(pk__in=ids).delete()
@@ -319,18 +395,21 @@ def delete_entries(request):
 @login_required
 @require_POST
 def create_batch(request):
-    ids = [i for i in request.POST.getlist('ids') if i.isdigit()]
+    ids = _digit_ids(request)
     name = request.POST.get('name', '').strip()
 
-    if len(ids) < 2:
+    # Validated against entries that actually exist, not just len(ids): a
+    # stale/deleted id slipping through here would otherwise let a 2-id
+    # request past this guard while resolving to 0 or 1 real rows.
+    entries = list(Entry.objects.filter(pk__in=ids))
+    if len(entries) < 2:
         return JsonResponse({'error': 'Select at least two entries to group.'}, status=400)
     if not name:
         return JsonResponse({'error': 'Batch name is required.'}, status=400)
 
     new_batch = Batch.objects.create(name=name)
-    entries = Entry.objects.filter(pk__in=ids)
     new_batch.entries.add(*entries)
-    return JsonResponse({'batch_id': new_batch.id, 'grouped': entries.count()})
+    return JsonResponse({'batch_id': new_batch.id, 'grouped': len(entries)})
 
 
 @login_required
@@ -340,13 +419,18 @@ def download_entries_pdf(request):
     batch_obj = None
 
     if scope == 'choose':
-        ids = [i for i in request.POST.getlist('ids') if i.isdigit()]
+        ids = _digit_ids(request)
         if not ids:
             return JsonResponse({'error': 'Select at least one entry to download.'}, status=400)
         # Reordered to match the home table's own display order ('-id') rather
         # than the order ids were selected in, so e.g. picking the 1st and 3rd
         # visible rows always renders as rows 1 and 2 in the PDF, in that order.
         entries = Entry.objects.filter(pk__in=ids).order_by('-id')
+        # Validated against what actually resolved, not len(ids): stale/
+        # deleted ids can otherwise slip past the check above and produce a
+        # "successful" download containing only a header row.
+        if not entries.exists():
+            return JsonResponse({'error': 'Select at least one entry to download.'}, status=400)
     elif scope == 'batch':
         batch_obj = get_object_or_404(Batch, slug=request.POST.get('slug', ''))
         entries = batch_obj.entries.order_by('-date', '-id')
@@ -397,6 +481,11 @@ def download_entries_pdf(request):
         'PdfTableBody', parent=styles['Normal'], fontName='Helvetica', fontSize=8, leading=10, alignment=TA_LEFT,
     )
 
+    # This header tuple's length/order must stay in lockstep with the
+    # colWidths list passed to Table() below (9 entries each, position-for-
+    # position) — reportlab raises if their lengths mismatch, so a column
+    # added to only one of them fails loudly at PDF-build time rather than
+    # silently misrendering, but check both together if you touch either.
     rows = [[
         Paragraph(text, header_style) for text in (
             'S.No', 'Date', 'Vehicle Number', 'Loading/Roll', 'Net Kg (Loading/Roll)',
@@ -420,14 +509,10 @@ def download_entries_pdf(request):
         # WHERE clause, which runs before window functions do — so e.g.
         # annotating then .filter(pk__in=ids) for "choose" would rank only
         # within the 2-3 chosen rows (1, 2, 3...) instead of their real,
-        # global serial numbers. Ranking the full table once and looking up
-        # by id sidesteps that trap for every scope that filters first
-        # (choose, batch).
-        serial_by_id = dict(
-            Entry.objects.annotate(
-                serial_number=Window(expression=RowNumber(), order_by=F('id').asc())
-            ).values_list('id', 'serial_number')
-        )
+        # global serial numbers. Ranking the full table once (via the shared
+        # _serial_by_id() helper) and looking up by id sidesteps that trap
+        # for every scope that filters first (choose, batch).
+        serial_by_id = _serial_by_id()
         sno_source = ((serial_by_id[entry.id], entry) for entry in entries)
 
     for sno, entry in sno_source:
@@ -440,9 +525,16 @@ def download_entries_pdf(request):
             _fmt_pdf_number(entry.weight_roll),
             _fmt_pdf_number(entry.net_kg_weight_roll, ' kg'),
             _fmt_pdf_number(entry.workers),
-            Paragraph(entry.remark or '—', body_style),
+            # remark is free text (EntryForm has no character restriction) and
+            # Paragraph() interprets a small XML-like markup language rather
+            # than plain text (<b>, <font color=...>, <a href=...>, etc.) --
+            # escaped first so a literal '&'/'<' in a remark can't break PDF
+            # generation or be interpreted as real markup/hyperlinks.
+            Paragraph(xml_escape(entry.remark) if entry.remark else '—', body_style),
         ])
 
+    # Kept in sync with the header tuple above (see its comment) — 9 widths
+    # for the same 9 columns, in the same order.
     table = Table(rows, repeatRows=1, colWidths=[35, 65, 100, 65, 85, 65, 85, 55, 185])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#16233d')),
@@ -602,6 +694,18 @@ def change_email_revert(request):
 
 @require_POST
 def check_username(request):
+    # Unauthenticated username-enumeration oracle otherwise -- rate-limited
+    # per-IP (see CHECK_USERNAME_MAX_ATTEMPTS above) since there's no valid
+    # username yet to key a per-account limit on. Once throttled, this
+    # returns the same {'valid': False} shape as a genuine miss rather than
+    # a distinguishable error, so it can't itself be used to detect throttling.
+    ip = request.META.get('REMOTE_ADDR', 'unknown')
+    attempts_key = f'check_username_attempts:{ip}'
+    attempts = cache.get(attempts_key, 0)
+    if attempts >= CHECK_USERNAME_MAX_ATTEMPTS:
+        return JsonResponse({'valid': False}, status=429)
+    cache.set(attempts_key, attempts + 1, CHECK_USERNAME_ATTEMPTS_TTL_SECONDS)
+
     username = request.POST.get('username', '').strip()
     valid = bool(username) and User.objects.filter(username__iexact=username).exists()
     return JsonResponse({'valid': valid})
@@ -613,11 +717,28 @@ def forgot_password_request_otp(request):
     email = request.POST.get('email', '').strip()
 
     user = User.objects.filter(username__iexact=username).first()
-    if user is None or not email or user.email.lower() != email.lower():
-        # Deliberately the same error whether the username doesn't exist or
-        # the email just doesn't match it — this step can't be used to probe
-        # which usernames are real.
+
+    # Wrong-email guesses against a known username are throttled the same
+    # way OTP verification already is (OTP_MAX_ATTEMPTS / _check_otp) --
+    # without this, an attacker who already knows (or has enumerated) a
+    # valid username could brute-force the account's registered email with
+    # no limit, since the cooldown in _send_otp_email is only ever reached
+    # after a correct email match. Keyed by user.pk, same convention as
+    # every other OTP-related cache key in this file.
+    attempts_key = f'forgot_password_email_attempts:{user.pk}' if user else None
+    throttled = attempts_key is not None and cache.get(attempts_key, 0) >= FORGOT_PASSWORD_EMAIL_MAX_ATTEMPTS
+
+    if throttled or user is None or not email or user.email.lower() != email.lower():
+        # Deliberately the same error whether the username doesn't exist,
+        # the email just doesn't match it, or the attempt cap above was
+        # just hit — this step can't be used to probe which usernames are
+        # real, or to detect that throttling (rather than a wrong guess)
+        # is what triggered the error.
+        if attempts_key and not throttled:
+            cache.set(attempts_key, cache.get(attempts_key, 0) + 1, FORGOT_PASSWORD_EMAIL_ATTEMPTS_TTL_SECONDS)
         return JsonResponse({'error': 'Enter Correct Email'}, status=400)
+
+    cache.delete(attempts_key)
 
     error_response = _send_otp_email(
         otp_key=f'forgot_password_otp:{user.pk}',

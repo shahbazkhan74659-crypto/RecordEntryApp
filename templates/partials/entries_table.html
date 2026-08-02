@@ -46,7 +46,7 @@ same markup instead of repeating it. Expected context variables:
         </thead>
         <tbody>
             {% for entry in entries %}
-            <tr data-date="{{ entry.date|date:'Y-m-d' }}" data-vehicle="{{ entry.vehicle_number|lower }}">
+            <tr>
                 {% if show_select %}
                 <td class="col-select"><label class="select-cell"><input type="checkbox" {% if checkbox_class %}class="{{ checkbox_class }}" {% endif %}{% if checkbox_name %}name="{{ checkbox_name }}" {% endif %}value="{{ entry.id }}" aria-label="{{ checkbox_aria_label|default:"Select row" }}"></label></td>
                 {% endif %}

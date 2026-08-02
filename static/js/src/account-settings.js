@@ -265,6 +265,12 @@ document.addEventListener("DOMContentLoaded", () => {
     return usernameChanged || emailChanged || currentPassword !== null;
   }
 
+  // Returns true only if every pending revert actually succeeded — checked
+  // via Promise.allSettled's per-task outcome (a rejected promise from a
+  // network-level fetch failure) *and* postForm's own {ok, data} shape (an
+  // HTTP error response never rejects, so "settled" alone isn't enough).
+  // handleCancel relies on this to avoid silently closing the modal as if
+  // a revert succeeded when it didn't.
   async function revertPendingChanges() {
     const tasks = [];
     if (usernameChanged) {
@@ -281,9 +287,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (emailChanged) {
       tasks.push(postForm(revertEmailUrl, {}));
     }
-    if (tasks.length > 0) {
-      await Promise.allSettled(tasks);
-    }
+    if (tasks.length === 0) return true;
+
+    const results = await Promise.allSettled(tasks);
+    return results.every((result) => result.status === "fulfilled" && result.value.ok);
   }
 
   function openModal() {
@@ -303,7 +310,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function handleCancel() {
     if (hasPendingChanges()) {
-      await revertPendingChanges();
+      const reverted = await revertPendingChanges();
+      if (!reverted) {
+        window.showToast("Could not undo all changes. Please check Account Settings and try again.", "error");
+        return;
+      }
     }
     resetAllSections();
     closeModal();
