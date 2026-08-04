@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import date as date_cls
 from io import BytesIO
@@ -31,6 +32,8 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from .forms import EntryForm
 from .models import Batch, Entry, entries_with_serial_number
+
+logger = logging.getLogger(__name__)
 
 OTP_TTL_SECONDS = 5 * 60
 OTP_RESEND_COOLDOWN_SECONDS = 60
@@ -110,6 +113,10 @@ def _send_otp_email(otp_key, cooldown_key, cache_payload, recipient_email, subje
             fail_silently=False,
         )
     except Exception:
+        # Swallowed otherwise -- logged so the real cause (auth failure,
+        # connection timeout, blocked port, etc.) shows up in server logs
+        # instead of vanishing behind this generic user-facing message.
+        logger.exception('Failed to send OTP email to %s', recipient_email)
         return JsonResponse(
             {'error': 'Could not send the verification email. Check the SMTP settings in .env.'}, status=500,
         )

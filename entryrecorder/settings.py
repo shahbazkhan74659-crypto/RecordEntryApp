@@ -203,6 +203,14 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+# Django's SMTP backend has no timeout by default, so a stalled connection
+# to EMAIL_HOST blocks indefinitely. On Render that runs past gunicorn's
+# default 30s worker timeout, which SIGKILLs the worker mid-request --
+# Render's edge then returns its own 502 HTML page instead of the clean
+# JSON error the view's own try/except (recorder/views.py) is meant to
+# return. Keeping this well under 30s means a stuck connection fails fast
+# and actually reaches that except block.
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 10))
 
 
 # Production-only transport/cookie hardening
