@@ -27,7 +27,6 @@ body {
     padding: 0 1.25rem;
 }
 
-/* Header */
 .site-header {
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
@@ -41,21 +40,49 @@ body {
     max-width: 1320px;
 }
 
+/* Must stay above the 768px query below — equal specificity means source
+   order decides, and flipping it would hide this permanently at mobile. */
+.hamburger-btn {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.hamburger-btn .hamburger-line {
+    display: block;
+    width: 22px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--color-text);
+}
+
+/* Below 768px, Home/Batch nav links and .site-nav collapse into the
+   hamburger-triggered off-canvas drawer (nav.js relocates them into
+   #mobile-nav-panel, outside .header-inner). */
 @media (max-width: 768px) {
     .header-inner {
         padding-left: 1.25rem;
         padding-right: 1.25rem;
-        flex-wrap: wrap;
-        row-gap: 0.5rem;
     }
 
-    .brand-group {
-        flex-wrap: wrap;
+    .header-inner .brand-group .nav-link {
+        display: none;
     }
 
-    .site-nav {
-        flex-wrap: wrap;
-        justify-content: flex-end;
+    .header-inner .site-nav {
+        display: none;
+    }
+
+    .hamburger-btn {
+        display: flex;
     }
 }
 
@@ -178,22 +205,101 @@ button.btn-outline:hover {
     background: #f87171;
 }
 
-/* Main content */
+/* #mobile-nav-overlay reuses .modal-overlay's backdrop/visibility toggle via
+   an id-selector specificity win (no !important) — same technique as
+   #range-modal's z-index override further down. .modal-card isn't reused
+   here since it's built for a centered dialog, not a full-height drawer. */
+#mobile-nav-overlay {
+    justify-content: flex-end;
+    align-items: stretch;
+}
+
+.mobile-nav-panel {
+    position: relative;
+    background: var(--color-surface);
+    width: 260px;
+    max-width: 80vw;
+    height: 100vh;
+    height: 100dvh;
+    padding: 4.5rem 1.5rem 1.5rem;
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+}
+
+#mobile-nav-overlay.visible .mobile-nav-panel {
+    transform: translateX(0);
+}
+
+.mobile-nav-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    font-size: 1.75rem;
+    line-height: 1;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.mobile-nav-panel .nav-link {
+    display: block;
+    margin-left: 0;
+    padding: 0.6rem 0;
+    font-size: 1.05rem;
+}
+
+/* margin-top: auto pushes .site-nav (Account Setting + Logout) to the
+   bottom of this flex column, leaving Home/Batch top-aligned above it. */
+.mobile-nav-panel .site-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: auto;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.mobile-nav-panel .site-nav a,
+.mobile-nav-panel .logout-form {
+    margin-left: 0;
+}
+
+.mobile-nav-panel .logout-form {
+    display: block;
+}
+
+.mobile-nav-panel .btn-outline,
+.mobile-nav-panel .link-button {
+    display: block;
+    width: 100%;
+    text-align: center;
+}
+
 main.container {
     padding-top: 1rem;
     padding-bottom: 2rem;
     min-height: calc(100vh - 140px);
 }
 
-/* Toggled by static/js/src/home.js whenever #selection-bar is visible, so
-   the fixed, bottom-hovering selection bar doesn't sit on top of the last
-   table row(s)/pagination bar on short mobile viewports — see
-   .selection-bar below for the bar's own size/position. */
+/* Toggled by home.js while #selection-bar is visible, so the fixed bar
+   doesn't sit on top of the last table row(s)/pagination. */
 main.container.has-selection-bar {
     padding-bottom: 8rem;
 }
 
-/* Messages (bottom-right toast popups) */
 .messages {
     position: fixed;
     right: 24px;
@@ -236,7 +342,6 @@ main.container.has-selection-bar {
     border-color: #fecaca;
 }
 
-/* Basic elements */
 h1, h2, h3 {
     line-height: 1.25;
 }
@@ -298,9 +403,8 @@ h1, h2, h3 {
     gap: 0.5rem;
 }
 
-/* Kept in the layout (not display:none) so showPicker()/focus() still work
-   from date-filter-btn's click handler — only visually hidden, with the
-   visible calendar icon button doing the actual opening. */
+/* Visually hidden (not display:none) so showPicker()/focus() still work
+   from the calendar button's click handler. */
 .date-filter-input-hidden {
     position: absolute;
     opacity: 0;
@@ -447,35 +551,379 @@ h1, h2, h3 {
 @media (max-width: 768px) {
     .page-header,
     .table-wrapper,
-    .new-entry-bar,
-    .batch-grid,
-    .batch-search-bar {
+    .new-entry-bar {
         margin-left: 0;
         margin-right: 0;
+    }
+
+    /* order:-1 stacks the greeting above the heading via flexbox reordering
+       (no template changes) across every .page-header consumer. */
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .admin-greeting {
+        order: -1;
+    }
+
+    /* h1 has no base font-size of its own (inherits the browser default,
+       ~2rem) — too large once stacked full-width at mobile. */
+    .page-title {
+        font-size: 1.5rem;
     }
 
     .batch-rename-form {
         min-width: 0;
     }
 
-    .batch-grid {
+    /* main.container-qualified to out-specify the later, equal-specificity
+       unconditional .batch-grid rule below (declared after this one, so it
+       would otherwise win at every viewport width regardless of source
+       order inside this media query). */
+    main.container .batch-grid {
+        margin-left: 0;
+        margin-right: 0;
         grid-template-columns: repeat(2, 1fr);
     }
 
-    /* .date-filter now wraps (see base rule above) instead of forcing
-       horizontal scroll on ~375-414px phones — the fixed 240px width and
-       1.5rem left margin (meant to visually separate the date-filter
-       cluster from the search bar on one wide desktop row) both need to
-       shrink once the search bar is likely wrapping onto its own line. */
+    /* Unscoped floor width — batch.html's own search bar has no date filter
+       competing for space. home's .date-filter rule below overrides this
+       more specifically for its tighter row. */
     .entry-search-input {
         width: 200px;
         margin-left: 0;
     }
+
+    /* Keeps all 4 date-filter controls on one row: nowrap + overflow-x
+       safety net rather than letting the search bar wrap to its own line. */
+    .date-filter {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+
+    .date-filter-btn {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+
+    .date-filter-clear {
+        min-width: 2rem;
+        height: 2.5rem;
+        padding: 0 0.6rem;
+        font-size: 0.78rem;
+    }
+
+    /* flex:1 + min-width:0 lets the input fill leftover row width instead
+       of overflowing at its default unconstrained content width. Joined
+       into one pill with .entry-search-btn below via matching squared
+       corners + a canceling negative margin. 40px controls here, under the
+       44px touch-target floor — no room for more alongside New Record/Save
+       on a narrow phone. */
+    .date-filter .entry-search-input {
+        flex: 1;
+        min-width: 0;
+        height: 2.5rem;
+        padding: 0 0.6rem;
+        font-size: 0.85rem;
+        border-radius: var(--radius) 0 0 var(--radius);
+        border-right: none;
+    }
+
+    .date-filter .entry-search-btn {
+        width: 2.5rem;
+        height: 2.5rem;
+        margin-left: -0.5rem;
+        border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    /* width:100% lets this lone wrapped-line child use its own
+       justify-content:flex-end to stay right-aligned once .date-filter
+       wraps onto its own line (space-between alone has no effect on a
+       single child occupying a full wrapped row). */
+    .new-entry-actions {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+
+    .new-entry-actions .btn {
+        padding: 0.45rem 0.85rem;
+        font-size: 0.85rem;
+    }
+
+    /* Compact mode: shows checkbox/S.No/Date/Vehicle Number (+ Loading/Roll
+       on batch_detail) without horizontal scroll; .table-wrapper's
+       overflow-x:auto still handles the rest. Scoped under .table-wrapper
+       so it doesn't reach the add-records modal's own table. */
+    .table-wrapper th,
+    .table-wrapper td {
+        padding: 0.5rem 0.6rem;
+        font-size: 0.75rem;
+    }
+
+    .table-wrapper th {
+        font-size: 0.68rem;
+    }
+
+    .table-wrapper th.col-select,
+    .table-wrapper td.col-select {
+        width: 2rem;
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+    }
+
+    /* Mirrors col-select's smaller padding here so the tap-target label
+       still fills the (now smaller) cell exactly. ~32px tap area, under
+       the 44px floor — no room for more alongside 3 text columns here. */
+    .table-wrapper .col-select .select-cell {
+        margin: -0.5rem -0.4rem;
+        padding: 0.5rem 0.4rem;
+    }
+
+    /* order:1 + flex-basis:100% puts the status line on its own row below
+       both pagination groups (CSS-only reorder, no template change). Icon
+       buttons/labels shrink so both groups fit one row on a narrow phone;
+       icon buttons land at 36px, under the 44px floor. */
+    .pagination {
+        gap: 0.75rem;
+    }
+
+    .pagination-group {
+        gap: 0.35rem;
+    }
+
+    .pagination-group-label {
+        font-size: 0.78rem;
+    }
+
+    .pagination-link {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.78rem;
+    }
+
+    .pagination-link.pagination-icon {
+        min-width: 2.25rem;
+        height: 2.25rem;
+        padding: 0 0.5rem;
+    }
+
+    .pagination-status {
+        order: 1;
+        flex-basis: 100%;
+        text-align: center;
+        margin-top: 0.25rem;
+        font-size: 0.78rem;
+    }
+
+    /* Ancestor-qualified for the same reason as .batch-grid above — the
+       later unconditional .batch-search-bar rule shares its specificity
+       and would otherwise win at every width. */
+    main.container .batch-search-bar {
+        margin-left: 0;
+        margin-right: 0;
+        justify-content: flex-start;
+    }
+
+    /* Same input/button merge treatment as .date-filter's search bar —
+       no calendar/All button competing here, so this renders wider. */
+    .batch-search-bar .entry-search-input {
+        flex: 1;
+        min-width: 0;
+        height: 2.5rem;
+        padding: 0 0.6rem;
+        font-size: 0.85rem;
+        border-radius: var(--radius) 0 0 var(--radius);
+        border-right: none;
+    }
+
+    .batch-search-bar .entry-search-btn {
+        width: 2.5rem;
+        height: 2.5rem;
+        margin-left: -0.5rem;
+        border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    /* Shrinks the 4 selection-bar buttons/gaps so they stay on one row
+       instead of wrapping 2x2 on narrow phones. Ancestor-qualified
+       (main.container) to out-specify the later base .selection-bar rule
+       below — same specificity bug/fix pattern as .batch-grid/
+       .batch-search-bar above. Padding restored to 1.5rem so the outer
+       buttons clear the pill's border-radius:999px curve once "N selected"
+       wraps to its own line above (a 2-row-tall pill has a bigger corner
+       radius than a 1-row one, tightening clearance at the bottom
+       corners). */
+    main.container .selection-bar {
+        gap: 0.6rem;
+        padding: 0.6rem 1.5rem;
+    }
+
+    main.container .selection-count {
+        font-size: 0.8rem;
+    }
+
+    /* nowrap here is belt-and-suspenders on top of the sizing above:
+       guarantees the 4 buttons can't split 2x2 regardless of minor
+       viewport/font-metric variance. */
+    main.container .selection-actions {
+        flex-wrap: nowrap;
+        gap: 0.5rem;
+    }
+
+    /* 36px here, under the 44px floor — no room to hold 44px x4 plus gaps
+       on one row on a narrow phone. */
+    main.container .btn-edit,
+    main.container .btn-group,
+    main.container .btn-delete,
+    main.container .btn-download {
+        width: 2.25rem;
+        height: 2.25rem;
+        border-radius: 8px;
+    }
+
+    .btn-edit svg,
+    .btn-group svg,
+    .btn-delete svg,
+    .btn-download svg {
+        width: 15px;
+        height: 15px;
+    }
 }
 
 @media (max-width: 480px) {
-    .batch-grid {
+    /* Same ancestor-qualified fix as the 768px block above. */
+    main.container .batch-grid {
         grid-template-columns: 1fr;
+    }
+
+    .date-filter-btn {
+        width: 2.25rem;
+        height: 2.25rem;
+    }
+
+    .date-filter-clear {
+        min-width: 1.75rem;
+        height: 2.25rem;
+        padding: 0 0.5rem;
+        font-size: 0.72rem;
+    }
+
+    .date-filter .entry-search-input {
+        flex: 1;
+        min-width: 0;
+        height: 2.25rem;
+        padding: 0 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .date-filter .entry-search-btn {
+        width: 2.25rem;
+        height: 2.25rem;
+    }
+
+    .new-entry-actions {
+        gap: 0.4rem;
+    }
+
+    .new-entry-actions .btn {
+        padding: 0.4rem 0.7rem;
+        font-size: 0.8rem;
+    }
+
+    .table-wrapper th,
+    .table-wrapper td {
+        padding: 0.4rem 0.45rem;
+        font-size: 0.7rem;
+    }
+
+    .table-wrapper th {
+        font-size: 0.62rem;
+    }
+
+    .table-wrapper th.col-select,
+    .table-wrapper td.col-select {
+        width: 1.75rem;
+        padding-left: 0.3rem;
+        padding-right: 0.3rem;
+    }
+
+    .table-wrapper .col-select .select-cell {
+        margin: -0.4rem -0.3rem;
+        padding: 0.4rem 0.3rem;
+    }
+
+    .pagination {
+        gap: 0.5rem;
+    }
+
+    .pagination-group {
+        gap: 0.3rem;
+    }
+
+    .pagination-group-label {
+        font-size: 0.72rem;
+    }
+
+    .pagination-link {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.72rem;
+    }
+
+    .pagination-link.pagination-icon {
+        min-width: 2rem;
+        height: 2rem;
+        padding: 0 0.4rem;
+    }
+
+    .pagination-status {
+        font-size: 0.72rem;
+    }
+
+    .batch-search-bar .entry-search-input {
+        flex: 1;
+        min-width: 0;
+        height: 2.25rem;
+        padding: 0 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .batch-search-bar .entry-search-btn {
+        width: 2.25rem;
+        height: 2.25rem;
+    }
+
+    /* Padding bumped to 1.5rem again — same border-radius-vs-wrapped-height
+       corner-clearance reasoning as the 768px block above, recomputed for
+       this block's smaller button/gap values. */
+    main.container .selection-bar {
+        gap: 0.5rem;
+        padding: 0.5rem 1.5rem;
+    }
+
+    main.container .selection-count {
+        font-size: 0.75rem;
+    }
+
+    main.container .selection-actions {
+        gap: 0.4rem;
+    }
+
+    main.container .btn-edit,
+    main.container .btn-group,
+    main.container .btn-delete,
+    main.container .btn-download {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 7px;
+    }
+
+    .btn-edit svg,
+    .btn-group svg,
+    .btn-delete svg,
+    .btn-download svg {
+        width: 13px;
+        height: 13px;
     }
 }
 
@@ -532,15 +980,10 @@ td.col-select {
     cursor: pointer;
 }
 
-/* Expands the clickable area of a select-column checkbox to the full
-   padded table cell (th.col-select/td.col-select), instead of just the
-   ~16x16px native checkbox, without changing its visual size or position:
-   the negative margin cancels the cell's own padding so this label fills
-   the cell, then the matching padding restores the original visual gap.
-   Scoped as ".col-select .select-cell" (not just ".select-cell") so this
-   out-specifies ".modal-card label" (0,1,1) when this same partial is
-   rendered inside the add-records modal — a bare ".select-cell" (0,1,0)
-   would otherwise lose that tie-break and fall back to display:block. */
+/* Expands the checkbox's clickable area to the full padded cell via a
+   negative-margin/matching-padding pair, without changing its visual size.
+   Scoped as ".col-select .select-cell" so this out-specifies ".modal-card
+   label" when this same partial renders inside the add-records modal. */
 .col-select .select-cell {
     display: flex;
     align-items: center;
@@ -596,10 +1039,9 @@ tbody tr.selected:hover {
     color: #cbd5e1;
 }
 
-/* Groups the 4 action buttons apart from .selection-count so, once
-   .selection-bar's own max-width forces a wrap on narrow phones, the count
-   cleanly lands on its own line above a centered row of buttons instead of
-   an arbitrary mid-button wrap. */
+/* Grouped apart from .selection-count so once max-width forces a wrap on
+   narrow phones, the count lands cleanly on its own line above the
+   buttons instead of an arbitrary mid-button wrap. */
 .selection-actions {
     display: flex;
     align-items: center;
@@ -892,7 +1334,6 @@ form label {
     gap: 1rem;
 }
 
-/* Card */
 .card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -913,7 +1354,6 @@ form label {
     margin-left: 0;
 }
 
-/* Batch cards */
 .batch-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -1003,9 +1443,6 @@ form label {
 
 .batch-card-menu-delete {
     color: #dc2626;
-    /* Small separation from the item above (particularly "Save") so a
-       touch mis-tap near the shared edge doesn't land on this destructive
-       action. */
     border-top: 1px solid var(--color-border);
 }
 
@@ -1098,15 +1535,11 @@ form label {
     color: #fff;
 }
 
-/* min-height (not height) + overflow-y: auto (not hidden): keeps the
-   centered, non-scrolling feel in the common case where content fits, but
-   never hard-clips content that doesn't (e.g. the form-error banner above
-   the login form, combined with a short/landscape mobile viewport) — the
-   page grows and becomes scrollable instead. The 100dvh line intentionally
-   follows the 100vh fallback (not replaces it): older browsers without
-   dvh support just use the 100vh value above it, while browsers that do
-   support dvh use it to avoid iOS Safari's dynamic address-bar chrome
-   clipping content sized against the wrong (chrome-hidden) 100vh value. */
+/* min-height (not height) + overflow-y:auto never hard-clips a short
+   viewport (e.g. the login form-error banner on a short/landscape phone).
+   The 100dvh line follows the 100vh fallback so browsers without dvh
+   support just use 100vh, while browsers that do support it avoid iOS
+   Safari's dynamic-address-bar 100vh mismatch. */
 .login-page {
     min-height: 100vh;
     min-height: 100dvh;
@@ -1164,7 +1597,114 @@ form label {
     color: #000000;
 }
 
-/* Footer */
+/* Card/logo/text shrink at mobile, scoped under .login-card so nothing
+   leaks into shared .btn/.btn-outline/form input rules elsewhere. Buttons
+   stay >=44px effective height at both breakpoints below even as
+   font-size/padding shrink; inputs keep their existing ~40px baseline
+   (already below the floor site-wide) rather than diverging further. */
+@media (max-width: 768px) {
+    .login-logo {
+        max-width: 98px;
+    }
+
+    .login-card {
+        max-width: 260px;
+        padding: 1.25rem;
+        /* Lighter than the base #6b7280 — reads heavy on a card this small. */
+        border-color: #9ca3ae;
+    }
+
+    .login-card h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.75rem;
+        font-weight: 600;
+    }
+
+    .login-card .form-error {
+        font-size: 0.8rem;
+        padding: 0.6rem 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .login-card form label {
+        font-size: 0.8rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .login-card form input {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.55rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .login-card .field-error {
+        font-size: 0.74rem;
+        margin: -0.55rem 0 0.75rem;
+    }
+
+    /* ~44.8px effective height — stays at the 44px floor. */
+    .login-card .btn,
+    .login-card button.btn-outline {
+        font-size: 0.8rem;
+        padding: 0.8rem 0.9rem;
+    }
+
+    .login-card button.btn-outline {
+        margin-top: 0.6rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-logo {
+        max-width: 76px;
+    }
+
+    .login-card {
+        max-width: 220px;
+        padding: 1rem;
+        border-color: #9ca3ae;
+    }
+
+    .login-card h1 {
+        font-size: 1.1rem;
+        margin: 0 0 0.6rem;
+        font-weight: 600;
+    }
+
+    .login-card .form-error {
+        font-size: 0.76rem;
+        padding: 0.5rem 0.65rem;
+        margin-bottom: 0.85rem;
+    }
+
+    .login-card form label {
+        font-size: 0.76rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .login-card form input {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.5rem;
+        margin-bottom: 0.65rem;
+    }
+
+    .login-card .field-error {
+        font-size: 0.72rem;
+        margin: -0.45rem 0 0.65rem;
+    }
+
+    /* ~45.2px effective height — still meets the 44px floor. */
+    .login-card .btn,
+    .login-card button.btn-outline {
+        font-size: 0.75rem;
+        padding: 0.85rem 0.75rem;
+    }
+
+    .login-card button.btn-outline {
+        margin-top: 0.5rem;
+    }
+}
+
 .site-footer {
     border-top: 1px solid var(--color-border);
     color: var(--color-muted);
@@ -1173,7 +1713,6 @@ form label {
     text-align: center;
 }
 
-/* Account Settings modal */
 #account-settings-modal .modal-card {
     max-height: 90vh;
     overflow-y: auto;
@@ -1185,12 +1724,9 @@ form label {
     display: none;
 }
 
-/* Same short-viewport safeguard as account-settings above: without this,
-   a tall modal (the add-records table on batch_edit, the multi-step
-   forgot-password flow on the login page, or the Save/Save-by-Range PDF
-   export menus on home) can exceed a short/landscape mobile viewport with
-   no way to reach its own Cancel/Done or scroll past its own title, since
-   .modal-overlay itself doesn't scroll. */
+/* Same short-viewport safeguard as account-settings above, applied to
+   every other tall modal (add-records table, forgot-password flow,
+   Save/Range PDF export menus). */
 #add-records-modal .modal-card,
 #forgot-password-modal .modal-card,
 #range-modal .modal-card,

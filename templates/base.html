@@ -23,6 +23,24 @@
                 <a href="{% url 'home' %}" class="nav-link{% if request.resolver_match.url_name == 'home' %} active{% endif %}">Home</a>
                 <a href="{% url 'batch' %}" class="nav-link{% if request.resolver_match.url_name == 'batch' %} active{% endif %}">Batch</a>
             </div>
+            <!-- Mobile-only trigger (hidden at desktop, see .hamburger-btn in
+                 style.css). static/js/src/nav.js moves the real .nav-link
+                 anchors and the real .site-nav below into #mobile-nav-panel
+                 when this is clicked, and moves them back on close — the
+                 same DOM nodes are relocated, never duplicated, so
+                 #open-account-settings only ever exists once. -->
+            <button
+                type="button"
+                id="mobile-nav-toggle"
+                class="hamburger-btn"
+                aria-label="Open menu"
+                aria-expanded="false"
+                aria-controls="mobile-nav-panel"
+            >
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
             <nav class="site-nav">
                 {% if user.is_authenticated %}
                     <button type="button" id="open-account-settings" class="btn-outline">Account Setting</button>
@@ -36,6 +54,18 @@
             </nav>
         </div>
     </header>
+
+    <!-- Off-canvas mobile nav drawer. Reuses the same .modal-overlay
+         backdrop/visibility convention as every other modal in this app
+         (see confirm_modal.html etc.) so bindModalDismiss/lockBodyScroll
+         work unchanged; #mobile-nav-panel starts empty except for the
+         close button — nav.js populates it by relocating the real header
+         nodes above, not by re-rendering copies of them. -->
+    <div class="modal-overlay" id="mobile-nav-overlay">
+        <div class="mobile-nav-panel" id="mobile-nav-panel">
+            <button type="button" id="mobile-nav-close" class="mobile-nav-close" aria-label="Close menu">&times;</button>
+        </div>
+    </div>
 
     <main class="container">
         {% if messages %}
@@ -60,6 +90,7 @@
     </footer>
 
     <script src="{% static 'js/dist/messages.js' %}"></script>
+    <script src="{% static 'js/dist/nav.js' %}"></script>
     {% if user.is_authenticated %}
         <script src="{% static 'js/dist/account-settings.js' %}"></script>
     {% endif %}

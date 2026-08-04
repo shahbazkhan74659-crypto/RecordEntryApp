@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+import dj_database_url
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -34,7 +35,14 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # to False (safe) if unset; local dev sets DEBUG=True in .env.
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', '').split(',') if h.strip()]
+
+# Render injects this automatically for every web service — no manual env
+# var needed for the default onrender.com hostname. A custom domain (if one
+# is ever added) still needs to go in ALLOWED_HOSTS/CSRF_TRUSTED_ORIGINS above.
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 
 # Application definition
@@ -51,6 +59,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -81,12 +90,20 @@ WSGI_APPLICATION = 'entryrecorder.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# DATABASE_URL (set in .env locally, set in the Render dashboard/render.yaml
+# for deployment) points at PostgreSQL. Unset locally, this falls back to the
+# original SQLite file so `runserver` keeps working with no extra setup.
+# DATABASE_SSL_REQUIRE defaults off since Render's internal DATABASE_URL
+# (used when the web service and database are linked in the same Blueprint)
+# doesn't need it — flip it on only if connecting to Postgres from outside
+# Render's private network (e.g. an external connection string).
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        conn_max_age=600,
+        ssl_require=os.environ.get('DATABASE_SSL_REQUIRE', 'False') == 'True',
+    )
 }
 
 
@@ -126,6 +143,29 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+# collectstatic's output (gitignored) — separate from STATICFILES_DIRS
+# above, which is the source. WhiteNoise (added to MIDDLEWARE above) serves
+# straight from here in production, so runserver never needs a separate
+# static file server. Ignored by Django's runserver when DEBUG=True, which
+# serves STATICFILES_DIRS directly instead.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        # Manifest storage requires collectstatic to have already run (it
+        # looks up hashed filenames from a manifest file) — fine in
+        # production where the build step always runs collectstatic first,
+        # but breaks {% static %} in local dev/tests, which never do. Only
+        # switched on when DEBUG is off.
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG
+            else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+        ),
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -168,13 +208,10 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # Production-only transport/cookie hardening
 # Tied to `not DEBUG` (now env-controlled above) rather than always-on, so
 # local dev over plain HTTP (DEBUG=True) isn't broken by cookies/redirects
-# that require HTTPS. No hostname is hardcoded here since there's no real
-# deployment host yet — see ALLOWED_HOSTS above. NOTE: whoever sets DEBUG=
-# False for a real deployment must also have actual HTTPS termination in
-# place first (SECURE_SSL_REDIRECT=True otherwise causes a redirect loop),
-# and SECURE_PROXY_SSL_HEADER must only be trusted if a reverse proxy that
-# actually sets/strips X-Forwarded-Proto sits in front of this app —
-# revisit this line specifically once the real deployment topology is known.
+# that require HTTPS. Deployment target is Render: its edge proxy terminates
+# TLS and sets X-Forwarded-Proto on every request, so SECURE_PROXY_SSL_HEADER
+# below is safe to trust — this would NOT be safe on a host where an
+# untrusted party could set that header directly.
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_SSL_REDIRECT = not DEBUG
@@ -182,3 +219,12 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') if not DEBUG else 
 SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
+
+# CSRF needs the scheme in each trusted origin (Django 4+), unlike
+# ALLOWED_HOSTS. RENDER_EXTERNAL_HOSTNAME is Render's own env var (see
+# ALLOWED_HOSTS above) — always HTTPS on Render, so hardcoding the scheme
+# here is safe. A custom domain added later needs to go in the
+# CSRF_TRUSTED_ORIGINS env var (comma-separated, full origin incl. scheme).
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
+if RENDER_EXTERNAL_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')

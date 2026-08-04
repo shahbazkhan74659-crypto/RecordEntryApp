@@ -29,7 +29,16 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='batch',
             name='slug',
-            field=models.SlugField(blank=True, default='', max_length=140),
+            # db_index=False here: SlugField defaults db_index=True, which on
+            # PostgreSQL creates both a plain btree index and a "_like"
+            # opclass index at this step — then the AlterField below (which
+            # adds unique=True, itself index-backed) tries to create an
+            # index with the same deterministic name and fails with
+            # "relation ... _like already exists". SQLite has no such
+            # opclass index, so this never surfaced there. Explicitly
+            # unindexed here since the field is about to become unique
+            # anyway; the final schema (unique index) is unchanged.
+            field=models.SlugField(blank=True, default='', max_length=140, db_index=False),
             preserve_default=False,
         ),
         migrations.RunPython(generate_slugs, noop),
