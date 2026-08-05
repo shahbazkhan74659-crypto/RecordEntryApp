@@ -118,7 +118,7 @@ def _send_otp_email(otp_key, cooldown_key, cache_payload, recipient_email, subje
         # instead of vanishing behind this generic user-facing message.
         logger.exception('Failed to send OTP email to %s', recipient_email)
         return JsonResponse(
-            {'error': 'Could not send the verification email. Check the SMTP settings in .env.'}, status=500,
+            {'error': 'Could not send the verification email. Check the SENDGRID_API_KEY setting in .env.'}, status=500,
         )
 
     return None

@@ -191,26 +191,31 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 20000
 
 
 # Email
-# Used by Account Settings' "Change Email" OTP flow (recorder/views.py).
+# Used by Account Settings' "Change Email" OTP flow and Forgot Password
+# (recorder/views.py), both via the plain django.core.mail.send_mail() call
+# in _send_otp_email. Sent over SendGrid's HTTP API via django-anymail,
+# not raw SMTP -- Render's platform doesn't reliably support arbitrary
+# outbound SMTP (raw TCP), only HTTP(S) egress, which broke OTP delivery
+# in production with a socket-level "Network is unreachable" error even
+# though the SMTP credentials themselves were correct and worked locally.
 # Real credentials go in .env (gitignored) — see .env.example. Until
-# EMAIL_HOST_PASSWORD is filled in, sending will fail; the view catches that
+# SENDGRID_API_KEY is filled in, sending will fail; the view catches that
 # and reports a clean error instead of a 500.
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-# Django's SMTP backend has no timeout by default, so a stalled connection
-# to EMAIL_HOST blocks indefinitely. On Render that runs past gunicorn's
-# default 30s worker timeout, which SIGKILLs the worker mid-request --
-# Render's edge then returns its own 502 HTML page instead of the clean
-# JSON error the view's own try/except (recorder/views.py) is meant to
-# return. Keeping this well under 30s means a stuck connection fails fast
-# and actually reaches that except block.
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 10))
+EMAIL_BACKEND = 'anymail.backends.sendgrid.EmailBackend'
+ANYMAIL = {
+    'SENDGRID_API_KEY': os.environ.get('SENDGRID_API_KEY', ''),
+}
+# Must be a verified sender identity in the SendGrid account (Single Sender
+# Verification or domain auth) -- SendGrid rejects sends from an address it
+# hasn't verified, unlike SMTP which only cared about the mailbox login.
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
+# Anymail's HTTP backends default to a 30s requests timeout, which on
+# Render runs right up against gunicorn's own 30s worker timeout -- keeping
+# this well under 30s means a stuck request to SendGrid fails fast and
+# actually reaches _send_otp_email's own try/except instead of the worker
+# getting SIGKILLed mid-request (which showed up to users as a bare 502).
+ANYMAIL['REQUESTS_TIMEOUT'] = int(os.environ.get('EMAIL_TIMEOUT', 10))
 
 
 # Production-only transport/cookie hardening
