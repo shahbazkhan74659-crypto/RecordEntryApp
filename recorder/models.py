@@ -1,3 +1,4 @@
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
@@ -32,10 +33,22 @@ class Batch(models.Model):
 class Entry(models.Model):
     date = models.DateField(default=timezone.localdate)
     vehicle_number = models.CharField(max_length=150, null=True, blank=True)
-    loading_roll = models.PositiveIntegerField(verbose_name='Loading/Roll', null=True, blank=True)
-    net_kg_loading_roll = models.PositiveIntegerField(verbose_name='Net Kg (Loading/Roll)', null=True, blank=True)
-    weight_roll = models.PositiveIntegerField(verbose_name='Weight/Roll', null=True, blank=True)
-    net_kg_weight_roll = models.PositiveIntegerField(verbose_name='Net Kg (Weight/Roll)', null=True, blank=True)
+    loading_roll = models.DecimalField(
+        verbose_name='Loading/Roll', max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    net_kg_loading_roll = models.DecimalField(
+        verbose_name='Net Kg (Loading/Roll)', max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    weight_roll = models.DecimalField(
+        verbose_name='Weight/Roll', max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    net_kg_weight_roll = models.DecimalField(
+        verbose_name='Net Kg (Weight/Roll)', max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
     workers = models.PositiveIntegerField(null=True, blank=True)
     remark = models.TextField(blank=True, null=True)
     batches = models.ManyToManyField(Batch, blank=True, related_name='entries')
