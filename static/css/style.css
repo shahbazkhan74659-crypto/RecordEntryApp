@@ -653,10 +653,15 @@ h1, h2, h3 {
         font-size: 0.85rem;
     }
 
-    /* Compact mode: shows checkbox/S.No/Date/Vehicle Number (+ Loading/Roll
-       on batch_detail) without horizontal scroll; .table-wrapper's
-       overflow-x:auto still handles the rest. Scoped under .table-wrapper
-       so it doesn't reach the add-records modal's own table. */
+    /* Compact mode: shows only checkbox/S.No/Date without horizontal scroll;
+       .table-wrapper's overflow-x:auto handles everything from Vehicle
+       Number onward. Scoped under .table-wrapper so it doesn't reach the
+       add-records modal's own table. Vehicle Number used to be included in
+       this always-visible set too, back when it was a short (max 15 char)
+       plate code -- now that it's free text up to 150 chars, giving it a
+       min-width instead (below) so it can't be auto-layout-squeezed down to
+       a character-per-line column keeps it legible, but also reliably pushes
+       it (and the rest) past the viewport into the scrollable region. */
     .table-wrapper th,
     .table-wrapper td {
         padding: 0.5rem 0.6rem;
@@ -672,6 +677,17 @@ h1, h2, h3 {
         width: 2rem;
         padding-left: 0.4rem;
         padding-right: 0.4rem;
+    }
+
+    /* min-width (not max-width) is the load-bearing part here: table-layout
+       auto is otherwise free to shrink this column toward its min-content,
+       which overflow-wrap:anywhere makes as small as a single character --
+       that's what produced a one-letter-per-line column. max-width still
+       caps how wide it grows once scrolled to. */
+    .table-wrapper th.col-vehicle,
+    .table-wrapper td.col-vehicle {
+        min-width: 160px;
+        max-width: 220px;
     }
 
     /* Mirrors col-select's smaller padding here so the tap-target label
@@ -848,6 +864,12 @@ h1, h2, h3 {
         padding-right: 0.3rem;
     }
 
+    .table-wrapper th.col-vehicle,
+    .table-wrapper td.col-vehicle {
+        min-width: 140px;
+        max-width: 180px;
+    }
+
     .table-wrapper .col-select .select-cell {
         margin: -0.4rem -0.3rem;
         padding: 0.4rem 0.3rem;
@@ -972,6 +994,18 @@ td.col-select {
     text-align: center;
     padding-left: 1rem;
     padding-right: 1rem;
+}
+
+/* vehicle_number is free text up to 150 chars (a phrase, for trucks that
+   don't report a number) rather than a short plate code -- capped and
+   forced to wrap (even mid-word, for a long run with no spaces) so a long
+   value grows the row's height instead of the table's width and forcing
+   .table-wrapper's horizontal scroll. */
+th.col-vehicle,
+td.col-vehicle {
+    max-width: 260px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .row-select {

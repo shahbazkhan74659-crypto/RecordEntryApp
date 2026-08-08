@@ -35,7 +35,7 @@ same markup instead of repeating it. Expected context variables:
                 {% endif %}
                 {% if show_serial %}<th>S.No</th>{% endif %}
                 <th>Date</th>
-                <th>Vehicle Number</th>
+                <th class="col-vehicle">Vehicle Number</th>
                 <th>Loading/Roll</th>
                 <th>Net Kg (Loading/Roll)</th>
                 <th>Weight/Roll</th>
@@ -52,7 +52,7 @@ same markup instead of repeating it. Expected context variables:
                 {% endif %}
                 {% if show_serial %}<td>{% if use_serial_field %}{{ entry.serial_number }}{% else %}{{ forloop.counter }}{% endif %}</td>{% endif %}
                 <td>{{ entry.date }}</td>
-                <td>{{ entry.vehicle_number }}</td>
+                <td class="col-vehicle">{{ entry.vehicle_number|default:"—" }}</td>
                 <td>{% if entry.loading_roll is not None %}{{ entry.loading_roll }}{% else %}—{% endif %}</td>
                 <td>{% if entry.net_kg_loading_roll is not None %}{{ entry.net_kg_loading_roll }} kg{% else %}—{% endif %}</td>
                 <td>{% if entry.weight_roll is not None %}{{ entry.weight_roll }}{% else %}—{% endif %}</td>

@@ -526,7 +526,11 @@ def download_entries_pdf(request):
         rows.append([
             str(sno),
             entry.date.strftime('%d-%m-%Y'),
-            entry.vehicle_number,
+            # vehicle_number is now free text up to 100 chars (a phrase, for
+            # trucks that don't report a number) rather than a short plate
+            # code, so it's wrapped in a Paragraph like remark below --
+            # escaped the same way, for the same reason.
+            Paragraph(xml_escape(entry.vehicle_number) if entry.vehicle_number else '—', body_style),
             _fmt_pdf_number(entry.loading_roll),
             _fmt_pdf_number(entry.net_kg_loading_roll, ' kg'),
             _fmt_pdf_number(entry.weight_roll),

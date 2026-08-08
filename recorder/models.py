@@ -1,14 +1,8 @@
-from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import F, Window
 from django.db.models.functions import RowNumber
 from django.utils import timezone
 from django.utils.text import slugify
-
-vehicle_number_validator = RegexValidator(
-    regex=r'^(?i:[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4})$',
-    message="Enter a valid vehicle number, e.g. MH12AB1234.",
-)
 
 
 class Batch(models.Model):
@@ -37,7 +31,7 @@ class Batch(models.Model):
 
 class Entry(models.Model):
     date = models.DateField(default=timezone.localdate)
-    vehicle_number = models.CharField(max_length=15, validators=[vehicle_number_validator])
+    vehicle_number = models.CharField(max_length=150, null=True, blank=True)
     loading_roll = models.PositiveIntegerField(verbose_name='Loading/Roll', null=True, blank=True)
     net_kg_loading_roll = models.PositiveIntegerField(verbose_name='Net Kg (Loading/Roll)', null=True, blank=True)
     weight_roll = models.PositiveIntegerField(verbose_name='Weight/Roll', null=True, blank=True)
@@ -54,7 +48,8 @@ class Entry(models.Model):
         return f"{self.vehicle_number} — {self.date}"
 
     def save(self, *args, **kwargs):
-        self.vehicle_number = self.vehicle_number.upper()
+        if self.vehicle_number:
+            self.vehicle_number = self.vehicle_number.upper()
         super().save(*args, **kwargs)
 
 
