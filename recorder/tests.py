@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 from io import BytesIO
 
 from django.contrib.auth.models import User
@@ -24,18 +25,6 @@ def build_after_100_ranges(count):
     return ranges
 
 
-def real_serial_numbers(start, end):
-    """The home page's own S.No for the entries a 'last_N'/'choose'/'all' PDF
-    scope would export for [start, end] (1-based, inclusive) — a stable rank
-    by creation order (ascending id), sliced off the '-id' (newest-first)
-    display order. Ground truth those scopes' PDF S.No column must match.
-    Built on the same entries_with_serial_number() (models.py) the app
-    itself uses, rather than a separately-maintained copy of the
-    Window(RowNumber()) query."""
-    base_qs = entries_with_serial_number()
-    return list(base_qs.order_by('-id')[start - 1:end].values_list('serial_number', flat=True))
-
-
 def expected_range_sno(start, end, total_count):
     """The 'range' scope's S.No is a deliberate exception (see views.py):
     it mirrors the range button's own label — 101-200 -> S.No 101, 102, ...
@@ -43,6 +32,18 @@ def expected_range_sno(start, end, total_count):
     many rows actually exist in a partial final range."""
     actual_rows = max(0, min(end, total_count) - start + 1)
     return list(range(start, start + actual_rows))
+
+
+def extract_pdf_vehicle_numbers(pdf_bytes, pattern):
+    """Reads vehicle-number column values out of a generated entries PDF, in
+    row order — unlike the S.No column (which is just a label, independent
+    of physical row order for the 'range' scope), this is how a test proves
+    which actual entry printed in which position."""
+    reader = PdfReader(BytesIO(pdf_bytes))
+    numbers = []
+    for page in reader.pages:
+        numbers.extend(re.findall(pattern, page.extract_text()))
+    return numbers
 
 
 def extract_pdf_serial_numbers(pdf_bytes):
@@ -117,10 +118,10 @@ class After100RangeExportTests(TestCase):
         self.assertEqual(pdf_serials, list(range(101, 126)))
 
     def test_first_100_shows_the_oldest_records_ascending(self):
-        # The mirror image of "Last 100": the 100 oldest records, oldest
-        # first, S.No counting up 1..100 — the real app serial_number for
-        # these specific rows already is 1..100, so this doubles as the
-        # 'first_100' analog of LastNAndChooseExportMatchAppSerialNumberTests.
+        # The mirror image of the newest 100-record range: the 100 oldest
+        # records, oldest first, S.No counting up 1..100 — the real app
+        # serial_number for these specific rows already is 1..100, so this
+        # doubles as the 'first_100' analog of ChooseExportMatchesAppSerialNumberTests.
         response = self.client.post('/entries/download-pdf/', {'scope': 'first_100'})
         self.assertEqual(response.status_code, 200)
         pdf_serials = extract_pdf_serial_numbers(response.content)
@@ -133,6 +134,17 @@ class After100RangeExportTests(TestCase):
         reader = PdfReader(BytesIO(response.content))
         self.assertIn('Remark', reader.pages[0].extract_text())
 
+    def test_range_rows_read_chronologically_ascending_top_to_bottom(self):
+        # The 101-200 bucket is still selected by position counted from the
+        # newest end, but the rows within it must now print oldest-first —
+        # MH12AB0001 (the oldest entry overall) belongs at the top of this
+        # 25-row bucket and MH12AB0025 at the bottom, not the reverse.
+        response = self.client.post('/entries/download-pdf/', {
+            'scope': 'range', 'start': '101', 'end': '200',
+        })
+        vehicle_numbers = extract_pdf_vehicle_numbers(response.content, r'MH12AB\d{4}')
+        self.assertEqual(vehicle_numbers, [f'MH12AB{i:04d}' for i in range(1, 26)])
+
     def test_range_rejects_invalid_bounds(self):
         for payload in (
             {'scope': 'range', 'start': '200', 'end': '101'},  # end < start
@@ -144,10 +156,10 @@ class After100RangeExportTests(TestCase):
                 self.assertEqual(response.status_code, 400)
 
 
-class LastNAndChooseExportMatchAppSerialNumberTests(TestCase):
-    """'all'/'last_N'/'choose' scopes are the opposite case from 'range':
-    their S.No must match the entry's real app serial_number (the same
-    value the home page's own S.No column shows), not a repositioned count."""
+class ChooseExportMatchesAppSerialNumberTests(TestCase):
+    """'all'/'choose' scopes are the opposite case from 'range': their S.No
+    must match the entry's real app serial_number (the same value the home
+    page's own S.No column shows), not a repositioned count."""
 
     @classmethod
     def setUpTestData(cls):
@@ -164,12 +176,6 @@ class LastNAndChooseExportMatchAppSerialNumberTests(TestCase):
     def setUp(self):
         self.client.force_login(self.user)
 
-    def test_last_10_shows_real_serial_numbers_not_1_to_10(self):
-        response = self.client.post('/entries/download-pdf/', {'scope': 'last_10'})
-        pdf_serials = extract_pdf_serial_numbers(response.content)
-        self.assertEqual(pdf_serials, real_serial_numbers(1, 10))
-        self.assertEqual(pdf_serials, [30, 29, 28, 27, 26, 25, 24, 23, 22, 21])
-
     def test_first_100_caps_at_the_real_count_when_under_100(self):
         # Only 30 entries exist — 'first_100' must return all 30 (S.No
         # 1..30), not error or pad out to a phantom 100.
@@ -182,6 +188,81 @@ class LastNAndChooseExportMatchAppSerialNumberTests(TestCase):
         response = self.client.post('/entries/download-pdf/', {'scope': 'choose', 'ids': picked_ids})
         pdf_serials = extract_pdf_serial_numbers(response.content)
         self.assertEqual(pdf_serials, [30, 29, 28])
+
+    def test_all_scope_downloads_in_ascending_order(self):
+        # 'all' used to be newest-first ('-id'); it's now oldest-first, so
+        # the PDF's S.No column reads 1..30 top-to-bottom instead of 30..1.
+        response = self.client.post('/entries/download-pdf/', {'scope': 'all'})
+        pdf_serials = extract_pdf_serial_numbers(response.content)
+        self.assertEqual(pdf_serials, list(range(1, 31)))
+
+    def test_choose_preserves_the_order_ids_were_submitted_in(self):
+        # 'choose' used to always re-sort picked rows back to '-id' display
+        # order regardless of pick order; it now preserves exactly the order
+        # ids arrive in, so this scrambled (non-id-ordered) submission must
+        # come back in that same scrambled order, not resorted either way.
+        all_ids = list(Entry.objects.order_by('id').values_list('id', flat=True))
+        scrambled_ids = [all_ids[5], all_ids[0], all_ids[29], all_ids[14]]
+        response = self.client.post('/entries/download-pdf/', {'scope': 'choose', 'ids': scrambled_ids})
+        pdf_serials = extract_pdf_serial_numbers(response.content)
+        self.assertEqual(pdf_serials, [6, 1, 30, 15])
+
+    def test_choose_drops_stale_ids_but_keeps_submitted_order(self):
+        real_ids = list(Entry.objects.order_by('id').values_list('id', flat=True)[:2])
+        stale_id = Entry.objects.order_by('-id').first().id + 1000
+        response = self.client.post('/entries/download-pdf/', {
+            'scope': 'choose', 'ids': [real_ids[1], stale_id, real_ids[0]],
+        })
+        pdf_serials = extract_pdf_serial_numbers(response.content)
+        self.assertEqual(pdf_serials, [2, 1])
+
+
+class PdfTotalsRowTests(TestCase):
+    """The exported PDF ends with a summary 'Total' row across the four
+    numeric roll/net-kg columns (Loading/Roll, Net Kg (Loading/Roll),
+    Weight/Roll, Net Kg (Weight/Roll)) — added per an explicit client
+    request after reviewing a downloaded PDF. S.No/Date/Workers/Remark stay
+    blank on that row; a None field on an individual entry counts as 0
+    toward the sum (it renders as '—' on its own row, but shouldn't make
+    the total wrong)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='tester_totals', password='pw12345!Strong')
+        Entry.objects.bulk_create([
+            Entry(
+                vehicle_number=f'MH12EF{i:04d}',
+                loading_roll=Decimal(i), net_kg_loading_roll=Decimal(i) * 10,
+                weight_roll=Decimal(i) * 2, net_kg_weight_roll=Decimal(i) * 20,
+                workers=1, remark='',
+            )
+            for i in range(1, 6)
+        ])
+        # One entry with blank numeric fields, to prove None doesn't break
+        # or silently exclude itself from the sum in a wrong way.
+        Entry.objects.create(vehicle_number='MH12EF9999', workers=1, remark='')
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_total_row_sums_the_four_numeric_columns(self):
+        response = self.client.post('/entries/download-pdf/', {'scope': 'all'})
+        text = PdfReader(BytesIO(response.content)).pages[-1].extract_text()
+        self.assertIn('Total', text)
+        # loading_roll: 1+2+3+4+5=15, net_kg_loading_roll: 10*(1+..+5)=150,
+        # weight_roll: 2*(1+..+5)=30, net_kg_weight_roll: 20*(1+..+5)=300 —
+        # the blank-fields entry contributes 0 to each.
+        self.assertIn('15.00', text)
+        self.assertIn('150.00 kg', text)
+        self.assertIn('30.00', text)
+        self.assertIn('300.00 kg', text)
+
+    def test_total_row_appears_for_choose_scope_too(self):
+        ids = list(Entry.objects.values_list('id', flat=True))
+        response = self.client.post('/entries/download-pdf/', {'scope': 'choose', 'ids': ids})
+        text = PdfReader(BytesIO(response.content)).pages[-1].extract_text()
+        self.assertIn('Total', text)
+        self.assertIn('15.00', text)
 
 
 class After100RangeExportAtProductionScaleTests(TestCase):

@@ -1,6 +1,7 @@
 import logging
 import secrets
 from datetime import date as date_cls
+from decimal import Decimal
 from io import BytesIO
 from urllib.parse import urlencode
 from xml.sax.saxutils import escape as xml_escape
@@ -59,9 +60,6 @@ FORGOT_PASSWORD_EMAIL_ATTEMPTS_TTL_SECONDS = 10 * 60
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_SECONDS = 15 * 60
 
-# "Last N" scopes for download_entries_pdf, mapped to the slice size taken
-# off Entry.objects.order_by('-id') (None means no limit, i.e. all records).
-PDF_SCOPE_LIMITS = {'all': None, 'last_10': 10, 'last_50': 50, 'last_100': 100}
 
 
 def _fmt_pdf_number(value, suffix=''):
@@ -429,14 +427,16 @@ def download_entries_pdf(request):
         ids = _digit_ids(request)
         if not ids:
             return JsonResponse({'error': 'Select at least one entry to download.'}, status=400)
-        # Reordered to match the home table's own display order ('-id') rather
-        # than the order ids were selected in, so e.g. picking the 1st and 3rd
-        # visible rows always renders as rows 1 and 2 in the PDF, in that order.
-        entries = Entry.objects.filter(pk__in=ids).order_by('-id')
-        # Validated against what actually resolved, not len(ids): stale/
-        # deleted ids can otherwise slip past the check above and produce a
-        # "successful" download containing only a header row.
-        if not entries.exists():
+        # Preserves the exact order ids were submitted in (the order rows
+        # were selected/checked on the home page, see home.js), rather than
+        # re-sorting by id/date — a picked-order download, not a ledger
+        # slice. Built via a dict lookup instead of filter(...).order_by(...)
+        # since a queryset has no way to sort by "position in an arbitrary
+        # id list"; also silently drops any stale id that no longer resolves
+        # to a real row, same as the existence check this replaces.
+        entries_by_id = {str(entry.id): entry for entry in Entry.objects.filter(pk__in=ids)}
+        entries = [entries_by_id[i] for i in ids if i in entries_by_id]
+        if not entries:
             return JsonResponse({'error': 'Select at least one entry to download.'}, status=400)
     elif scope == 'batch':
         batch_obj = get_object_or_404(Batch, slug=request.POST.get('slug', ''))
@@ -447,23 +447,26 @@ def download_entries_pdf(request):
         if not (start.isdigit() and end.isdigit()) or int(start) < 1 or int(end) < int(start):
             return JsonResponse({'error': 'Invalid range.'}, status=400)
         start, end = int(start), int(end)
-        # Same '-id' most-recent-first ordering as the "Last N" scopes above —
-        # a range is a continuation of "Last 100", not a different ordering.
-        entries = Entry.objects.order_by('-id')[start - 1:end]
+        # The bucket itself is still selected by position counted from the
+        # newest end ('-id'), but the rows within it are then reversed to
+        # ascending (oldest-in-bucket first) so the PDF reads chronologically
+        # top-to-bottom — consistent with 'all'/'first_100' below, and with
+        # the S.No column (still labeled start..end via enumerate() further
+        # down) counting up in the same direction as the actual dates.
+        entries = list(Entry.objects.order_by('-id')[start - 1:end])[::-1]
     elif scope == 'first_100':
-        # The oldest 100 records — the mirror image of 'last_100', anchored
-        # to the *other* end of the table. Ordered ascending (oldest first)
+        # The oldest 100 records — the mirror image of a 100-record range
+        # anchored to the *other* end of the table. Ordered ascending (oldest first)
         # rather than the '-id' newest-first convention every other scope
         # uses, so the PDF reads top-to-bottom the same direction its S.No
         # counts up: the real app serial_number for these specific rows
         # already is 1..100 (or fewer, capped naturally by the slice), so
         # no special-casing is needed in the S.No section below.
         entries = Entry.objects.order_by('id')[:100]
-    elif scope in PDF_SCOPE_LIMITS:
-        entries = Entry.objects.order_by('-id')
-        limit = PDF_SCOPE_LIMITS[scope]
-        if limit is not None:
-            entries = entries[:limit]
+    elif scope == 'all':
+        # Ascending (oldest first) so the PDF reads top-to-bottom the same
+        # direction its S.No counts up, matching 'first_100' below.
+        entries = Entry.objects.order_by('id')
     else:
         return JsonResponse({'error': 'Invalid scope.'}, status=400)
 
@@ -522,7 +525,16 @@ def download_entries_pdf(request):
         serial_by_id = _serial_by_id()
         sno_source = ((serial_by_id[entry.id], entry) for entry in entries)
 
+    total_loading_roll = Decimal('0')
+    total_net_kg_loading_roll = Decimal('0')
+    total_weight_roll = Decimal('0')
+    total_net_kg_weight_roll = Decimal('0')
+
     for sno, entry in sno_source:
+        total_loading_roll += entry.loading_roll or Decimal('0')
+        total_net_kg_loading_roll += entry.net_kg_loading_roll or Decimal('0')
+        total_weight_roll += entry.weight_roll or Decimal('0')
+        total_net_kg_weight_roll += entry.net_kg_weight_roll or Decimal('0')
         rows.append([
             str(sno),
             entry.date.strftime('%d-%m-%Y'),
@@ -544,6 +556,24 @@ def download_entries_pdf(request):
             Paragraph(xml_escape(entry.remark) if entry.remark else '—', body_style),
         ])
 
+    # Trailing summary row — S.No/Date/Workers/Remark left blank (a "Total"
+    # doesn't have any of those), 'Total' spans the first three columns via
+    # the SPAN style below, and the four roll/net-kg columns are summed
+    # across every exported entry (None values treated as 0, same as
+    # _fmt_pdf_number already renders a bare None as '—' per-row).
+    # 'Total' must go in the span's *first* cell (index 0, not 1 or 2) —
+    # ReportLab only renders the top-left cell's content across a SPAN and
+    # silently drops whatever's in the other spanned cells.
+    total_row_index = len(rows)
+    rows.append([
+        Paragraph('Total', body_style), '', '',
+        _fmt_pdf_number(total_loading_roll),
+        _fmt_pdf_number(total_net_kg_loading_roll, ' kg'),
+        _fmt_pdf_number(total_weight_roll),
+        _fmt_pdf_number(total_net_kg_weight_roll, ' kg'),
+        '', '',
+    ])
+
     # Kept in sync with the header tuple above (see its comment) — 9 widths
     # for the same 9 columns, in the same order.
     table = Table(rows, repeatRows=1, colWidths=[35, 65, 100, 65, 85, 65, 85, 55, 185])
@@ -558,6 +588,13 @@ def download_entries_pdf(request):
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        # Total row: spans 'Total' across S.No/Date/Vehicle Number, bold,
+        # and set off from the data rows with a shaded background + a rule
+        # above it rather than blending into the alternating row stripes.
+        ('SPAN', (0, total_row_index), (2, total_row_index)),
+        ('FONTNAME', (0, total_row_index), (-1, total_row_index), 'Helvetica-Bold'),
+        ('BACKGROUND', (0, total_row_index), (-1, total_row_index), colors.HexColor('#e2e8f0')),
+        ('LINEABOVE', (0, total_row_index), (-1, total_row_index), 1, colors.HexColor('#16233d')),
     ]))
 
     record_word = 'record' if len(entries) == 1 else 'records'

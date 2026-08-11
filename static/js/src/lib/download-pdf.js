@@ -1,6 +1,6 @@
 import { getCookie } from "./cookies.js";
 
-// Shared by home.js (scope="all"/"last_10"/"last_50"/"last_100"/"choose")
+// Shared by home.js (scope="all"/"range"/"first_100"/"choose")
 // and batch.js (scope="batch"). Fetches the PDF as a blob rather than
 // navigating to the URL directly, so the same X-CSRFToken header/POST-body
 // pattern already used for delete/group can carry `params` without a page

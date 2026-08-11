@@ -22,14 +22,31 @@ function initSelectionBar({
     return [...table.querySelectorAll(".row-select:checked")];
   }
 
+  // Tracks entry ids in the order they were checked (first selected, first
+  // in this list) rather than the table's own top-to-bottom row order —
+  // this is what the "Choose" download uses so the PDF comes out in the
+  // order records were picked, not re-sorted by id/date. Every place that
+  // changes a checkbox's checked state (individual click, select-all,
+  // clearSelection, delete) must go through setChecked() to keep this in
+  // sync with the actual DOM checkbox state.
+  let selectionOrder = [];
+
+  function setChecked(checkbox, checked) {
+    checkbox.checked = checked;
+    checkbox.closest("tr").classList.toggle("selected", checked);
+    const index = selectionOrder.indexOf(checkbox.value);
+    if (checked) {
+      if (index === -1) selectionOrder.push(checkbox.value);
+    } else if (index !== -1) {
+      selectionOrder.splice(index, 1);
+    }
+  }
+
   // Shared by the Group and Download handlers below: both leave the rows
   // themselves in the DOM (unlike Delete, which removes the <tr> entirely)
   // but need to uncheck and un-highlight whatever was just acted on.
   function clearSelection(checked) {
-    checked.forEach((checkbox) => {
-      checkbox.checked = false;
-      checkbox.closest("tr").classList.remove("selected");
-    });
+    checked.forEach((checkbox) => setChecked(checkbox, false));
   }
 
   function updateSelectAllState() {
@@ -59,16 +76,13 @@ function initSelectionBar({
     const checkbox = event.target;
     if (!checkbox.matches(".row-select")) return;
 
-    checkbox.closest("tr").classList.toggle("selected", checkbox.checked);
+    setChecked(checkbox, checkbox.checked);
     updateBar();
   });
 
   selectAllCheckbox.addEventListener("change", () => {
     const checked = selectAllCheckbox.checked;
-    allCheckboxes().forEach((checkbox) => {
-      checkbox.checked = checked;
-      checkbox.closest("tr").classList.toggle("selected", checked);
-    });
+    allCheckboxes().forEach((checkbox) => setChecked(checkbox, checked));
     updateBar();
   });
 
@@ -131,7 +145,10 @@ function initSelectionBar({
       return;
     }
 
-    checked.forEach((checkbox) => checkbox.closest("tr").remove());
+    checked.forEach((checkbox) => {
+      setChecked(checkbox, false);
+      checkbox.closest("tr").remove();
+    });
     updateBar();
     window.showToast(`Deleted ${checked.length} ${checked.length === 1 ? "entry" : "entries"}.`, "error");
   });
@@ -140,9 +157,11 @@ function initSelectionBar({
     const checked = selectedCheckboxes();
     if (checked.length === 0) return;
 
+    // Sent in selectionOrder rather than checked's DOM/table order, so the
+    // PDF comes out in the order these rows were actually picked.
     const succeeded = await downloadPdf(downloadUrl, {
       scope: "choose",
-      ids: checked.map((checkbox) => checkbox.value),
+      ids: selectionOrder.slice(),
     });
     if (!succeeded) return;
 
@@ -188,9 +207,9 @@ function initSaveModal(bar, downloadUrl) {
 
   // Ranges of 100 beyond the first 100 (101-200, 201-300, ...), extending
   // only as long as more than 20 records remain past the last boundary —
-  // mirrors "Last 100" etc.'s '-id' most-recent-first ordering. Returned
-  // highest-first so the newest (most recently reachable) range shows
-  // first in the grid, matching "Last 100" already showing the newest end.
+  // mirrors the '-id' most-recent-first ordering "All Records" uses.
+  // Returned highest-first so the newest (most recently reachable) range
+  // shows first in the grid, matching the newest end of the table.
   function buildRanges(count) {
     const ranges = [];
     let boundary = 100;
@@ -250,8 +269,8 @@ function initSaveModal(bar, downloadUrl) {
       ranges.forEach(({ start, end }) => {
         addRangeOption(`${start}-${end}`, () => downloadPdf(downloadUrl, { scope: "range", start, end }));
       });
-      // The oldest 100 records — the mirror image of "Last 100", anchored
-      // to the other end of the table. Placed last so the grid reads as
+      // The oldest 100 records — the mirror image of the newest 100-record
+      // range, anchored to the other end of the table. Placed last so the grid reads as
       // a continuous countdown toward the very beginning of the ledger.
       addRangeOption("1-100", () => downloadPdf(downloadUrl, { scope: "first_100" }));
 
