@@ -1259,7 +1259,8 @@ tbody tr.selected:hover {
 
 .modal-card input[type="text"],
 .modal-card input[type="password"],
-.modal-card input[type="email"] {
+.modal-card input[type="email"],
+.modal-card input[type="date"] {
     width: 100%;
     padding: 0.5rem 0.65rem;
     border: 1px solid var(--color-border);
@@ -1762,6 +1763,7 @@ form label {
    every other tall modal (add-records table, forgot-password flow,
    Save/Range PDF export menus). */
 #add-records-modal .modal-card,
+#choose-range-modal .modal-card,
 #forgot-password-modal .modal-card,
 #range-modal .modal-card,
 #save-modal .modal-card {
@@ -1769,8 +1771,9 @@ form label {
     overflow-y: auto;
 }
 
-/* Stacks above #save-modal since the range picker opens without closing it. */
-#range-modal {
+/* Stacks above #save-modal since the range/choose-range pickers open without closing it. */
+#range-modal,
+#choose-range-modal {
     z-index: 301;
 }
 

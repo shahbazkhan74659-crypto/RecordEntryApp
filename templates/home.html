@@ -88,6 +88,7 @@
             <div class="save-options">
                 <button type="button" class="save-option-btn" data-scope="all">All Records</button>
                 <button type="button" id="by-range-btn" class="save-option-btn">Save by Range</button>
+                <button type="button" id="choose-range-btn" class="save-option-btn">Choose Range</button>
                 <button type="button" class="save-option-btn" data-scope="choose">Choose</button>
             </div>
             <div class="modal-actions">
@@ -102,6 +103,20 @@
             <div class="range-options" id="range-options"></div>
             <div class="modal-actions">
                 <button type="button" id="range-modal-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="choose-range-modal">
+        <div class="modal-card">
+            <p class="modal-title">Choose Date Range</p>
+            <label for="choose-range-from">From</label>
+            <input type="date" id="choose-range-from">
+            <label for="choose-range-to">To</label>
+            <input type="date" id="choose-range-to">
+            <div class="modal-actions">
+                <button type="button" id="choose-range-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
+                <button type="button" id="choose-range-save" class="modal-btn modal-btn-primary">Save</button>
             </div>
         </div>
     </div>

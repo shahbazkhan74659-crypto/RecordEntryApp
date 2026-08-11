@@ -454,6 +454,23 @@ def download_entries_pdf(request):
         # the S.No column (still labeled start..end via enumerate() further
         # down) counting up in the same direction as the actual dates.
         entries = list(Entry.objects.order_by('-id')[start - 1:end])[::-1]
+    elif scope == 'date_range':
+        start_date_str = request.POST.get('start_date', '')
+        end_date_str = request.POST.get('end_date', '')
+        try:
+            start_date = date_cls.fromisoformat(start_date_str)
+            end_date = date_cls.fromisoformat(end_date_str)
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date range.'}, status=400)
+        if end_date < start_date:
+            return JsonResponse({'error': 'End date must be on or after the start date.'}, status=400)
+        # Ascending (oldest first), same convention as 'all'/'first_100' —
+        # this scope uses each entry's real app serial_number (falls into
+        # the 'else' branch below), so it reads as a filtered slice of the
+        # ledger rather than a repaginated 'range' download.
+        entries = Entry.objects.filter(date__gte=start_date, date__lte=end_date).order_by('id')
+        if not entries.exists():
+            return JsonResponse({'error': 'No entries found in that date range.'}, status=400)
     elif scope == 'first_100':
         # The oldest 100 records — the mirror image of a 100-record range
         # anchored to the *other* end of the table. Ordered ascending (oldest first)
@@ -489,6 +506,12 @@ def download_entries_pdf(request):
 
     body_style = ParagraphStyle(
         'PdfTableBody', parent=styles['Normal'], fontName='Helvetica', fontSize=8, leading=10, alignment=TA_LEFT,
+    )
+
+    # The company letterhead heading shown at the top of every exported PDF
+    # regardless of scope.
+    company_style = ParagraphStyle(
+        'PdfCompanyHeader', parent=styles['Title'], fontSize=18, leading=22,
     )
 
     # This header tuple's length/order must stay in lockstep with the
@@ -598,9 +621,8 @@ def download_entries_pdf(request):
     ]))
 
     record_word = 'record' if len(entries) == 1 else 'records'
-    title = f'Batch — {batch_obj.name}' if batch_obj else 'Truck Loading Entries'
     elements = [
-        Paragraph(title, styles['Title']),
+        Paragraph('Patodia Filaments Pvt Ltd.', company_style),
         Paragraph(
             f'Generated on {timezone.localdate().strftime("%d-%m-%Y")} — {len(entries)} {record_word}',
             styles['Normal'],
@@ -614,6 +636,8 @@ def download_entries_pdf(request):
         scope_part = batch_obj.slug
     elif scope == 'range':
         scope_part = f'range-{start}-{end}'
+    elif scope == 'date_range':
+        scope_part = f'{start_date.isoformat()}-to-{end_date.isoformat()}'
     else:
         scope_part = scope
     filename = f'truck-entries-{scope_part}-{timezone.localdate().isoformat()}.pdf'

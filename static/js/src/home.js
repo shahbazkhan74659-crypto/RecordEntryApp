@@ -183,17 +183,28 @@ function initSaveModal(bar, downloadUrl) {
   const rangeModal = document.querySelector("#range-modal");
   const rangeModalCancel = document.querySelector("#range-modal-cancel");
   const rangeOptionsContainer = document.querySelector("#range-options");
+  const chooseRangeButton = document.querySelector("#choose-range-btn");
+  const chooseRangeModal = document.querySelector("#choose-range-modal");
+  const chooseRangeCancel = document.querySelector("#choose-range-cancel");
+  const chooseRangeSave = document.querySelector("#choose-range-save");
+  const chooseRangeFrom = document.querySelector("#choose-range-from");
+  const chooseRangeTo = document.querySelector("#choose-range-to");
   const entryCount = Number(bar.dataset.entryCount);
 
   if (!saveButton || !saveModal || !saveModalCancel || !saveOptionButtons.length) return;
 
   function closeSaveModal() {
-    // A single Escape press fires both this modal's and the range modal's
-    // bindModalDismiss listeners; when the range modal is open on top,
-    // redirect to closing that one first so Escape closes the topmost
-    // modal only (a second press then closes this one as normal).
+    // A single Escape press fires both this modal's and whichever stacked
+    // sub-modal's (range/choose-range) bindModalDismiss listeners; when a
+    // sub-modal is open on top, redirect to closing that one first so
+    // Escape closes the topmost modal only (a second press then closes
+    // this one as normal).
     if (rangeModal && rangeModal.classList.contains("visible")) {
       closeRangeModal();
+      return;
+    }
+    if (chooseRangeModal && chooseRangeModal.classList.contains("visible")) {
+      closeChooseRangeModal();
       return;
     }
     saveModal.classList.remove("visible");
@@ -202,6 +213,11 @@ function initSaveModal(bar, downloadUrl) {
 
   function closeRangeModal() {
     rangeModal.classList.remove("visible");
+    unlockBodyScroll();
+  }
+
+  function closeChooseRangeModal() {
+    chooseRangeModal.classList.remove("visible");
     unlockBodyScroll();
   }
 
@@ -280,6 +296,43 @@ function initSaveModal(bar, downloadUrl) {
 
     rangeModalCancel.addEventListener("click", closeRangeModal);
     bindModalDismiss(rangeModal, closeRangeModal);
+  }
+
+  if (chooseRangeButton && chooseRangeModal && chooseRangeCancel && chooseRangeSave
+    && chooseRangeFrom && chooseRangeTo) {
+    chooseRangeButton.addEventListener("click", () => {
+      chooseRangeFrom.value = "";
+      chooseRangeTo.value = "";
+      chooseRangeModal.classList.add("visible");
+      lockBodyScroll();
+    });
+
+    chooseRangeSave.addEventListener("click", async () => {
+      const startDate = chooseRangeFrom.value;
+      const endDate = chooseRangeTo.value;
+
+      if (!startDate || !endDate) {
+        window.showToast("Choose both a From and To date.", "error");
+        return;
+      }
+      if (endDate < startDate) {
+        window.showToast("The To date must be on or after the From date.", "error");
+        return;
+      }
+
+      const succeeded = await downloadPdf(downloadUrl, {
+        scope: "date_range",
+        start_date: startDate,
+        end_date: endDate,
+      });
+      if (!succeeded) return;
+
+      closeChooseRangeModal();
+      closeSaveModal();
+    });
+
+    chooseRangeCancel.addEventListener("click", closeChooseRangeModal);
+    bindModalDismiss(chooseRangeModal, closeChooseRangeModal);
   }
 }
 
