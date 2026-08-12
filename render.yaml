@@ -19,10 +19,19 @@ services:
         generateValue: true
       - key: DEBUG
         value: "False"
+      # Was fromDatabase: entryrecorder-db (Render's own free Postgres, which
+      # expires 90 days after creation). Migrated to an external always-free
+      # provider (Neon) instead -- fill in the real connection string by hand
+      # on the web service's Environment tab, same as the other sync:false
+      # keys below (adding a new sync:false key to an existing service does
+      # NOT auto-populate on sync, see CLAUDE.md "Deployment (Render)").
       - key: DATABASE_URL
-        fromDatabase:
-          name: entryrecorder-db
-          property: connectionString
+        sync: false
+      # Neon is outside Render's private network, so the SSL requirement
+      # settings.py normally leaves off (Render's internal DATABASE_URL
+      # doesn't need it) has to be turned on for this connection.
+      - key: DATABASE_SSL_REQUIRE
+        value: "True"
       - key: SENDGRID_API_KEY
         sync: false
       - key: DEFAULT_FROM_EMAIL
