@@ -1,9 +1,3 @@
-databases:
-  - name: entryrecorder-db
-    plan: free
-    databaseName: entryrecorder
-    user: entryrecorder
-
 services:
   - type: web
     name: entryrecorder
