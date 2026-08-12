@@ -58,8 +58,18 @@ body {
 .app-shell {
     display: flex;
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
+/* height: 100dvh (after the 100vh fallback) matters most on mobile: as a
+   fixed off-canvas drawer (see the 768px query below), a plain 100vh here
+   is taller than the actually-visible viewport whenever the browser's own
+   address bar is showing, since 100vh sizes against the largest possible
+   viewport (address bar hidden) not the current one. That pushed the
+   profile/logout row below the visible fold, looking cut off/broken --
+   same root cause the login page's own min-height already had this exact
+   fallback for (see registration/login.html), just never carried over to
+   this newer sidebar. Unsupported browsers simply keep the vh value. */
 .sidebar {
     width: var(--sidebar-width);
     flex: 0 0 var(--sidebar-width);
@@ -71,6 +81,7 @@ body {
     position: sticky;
     top: 0;
     height: 100vh;
+    height: 100dvh;
     overflow-y: auto;
 }
 
