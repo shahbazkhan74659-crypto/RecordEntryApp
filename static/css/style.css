@@ -940,11 +940,15 @@ h1, h2, h3 {
        live tab -- cells kept rendering wider than their max-width alone
        declared), but does treat width as authoritative. min/max are kept
        alongside as belt-and-suspenders bounds. */
+    /* Wide enough for the "S.NO" header text itself (4 uppercase
+       characters), not just the 2-3 digit body values -- the header was
+       the actual tight fit here (touching the border, confirmed against
+       a real screenshot), since th/td always share one column width. */
     .table-wrapper th.col-serial,
     .table-wrapper td.col-serial {
-        width: 1.8rem;
-        min-width: 1.8rem;
-        max-width: 1.8rem;
+        width: 2.3rem;
+        min-width: 2.3rem;
+        max-width: 2.3rem;
     }
 
     .table-wrapper th.col-date,
@@ -1144,11 +1148,15 @@ h1, h2, h3 {
         padding-right: 0.2rem;
     }
 
+    /* Wide enough for the "S.NO" header text itself (4 uppercase
+       characters), not just the 2-3 digit body values -- the header was
+       the actual tight fit here (touching the border, confirmed against
+       a real screenshot), since th/td always share one column width. */
     .table-wrapper th.col-serial,
     .table-wrapper td.col-serial {
-        width: 1.8rem;
-        min-width: 1.8rem;
-        max-width: 1.8rem;
+        width: 2.3rem;
+        min-width: 2.3rem;
+        max-width: 2.3rem;
     }
 
     .table-wrapper th.col-date,
