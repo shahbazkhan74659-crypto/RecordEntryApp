@@ -8,7 +8,7 @@
         {% include "partials/admin_greeting.html" %}
     </div>
 
-    {% include "partials/entries_table.html" with entries=entries show_select=False show_serial=True use_serial_field=False empty_message="No entries in this batch." colspan=9 %}
+    {% include "partials/entries_table.html" with entries=entries show_select=False show_serial=True use_serial_field=False empty_message="No entries in this batch." colspan=16 %}
 
     <p class="back-link"><a href="{% url 'batch' %}" class="btn-outline">Back to Batches</a></p>
 {% endblock %}

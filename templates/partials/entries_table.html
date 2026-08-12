@@ -31,17 +31,29 @@ same markup instead of repeating it. Expected context variables:
         <thead>
             <tr>
                 {% if show_select %}
-                <th class="col-select">{% if select_all %}<label class="select-cell"><input type="checkbox" id="select-all-rows" aria-label="Select all rows"></label>{% endif %}</th>
+                <th class="col-select" rowspan="2">{% if select_all %}<label class="select-cell"><input type="checkbox" id="select-all-rows" aria-label="Select all rows"></label>{% endif %}</th>
                 {% endif %}
-                {% if show_serial %}<th>S.No</th>{% endif %}
-                <th>Date</th>
-                <th class="col-vehicle">Vehicle Number</th>
-                <th>Loading/Roll</th>
-                <th>Net Kg (Loading/Roll)</th>
-                <th>Weight/Roll</th>
-                <th>Net Kg (Weight/Roll)</th>
-                <th>Workers</th>
-                <th>Remark</th>
+                {% if show_serial %}<th class="col-serial" rowspan="2">S.No</th>{% endif %}
+                <th class="col-date" rowspan="2">Date</th>
+                <th class="col-vehicle" rowspan="2"><span class="label-full">Vehicle Number</span><span class="label-short">Vehicle No.</span></th>
+                <th class="col-num col-group-end" rowspan="2"><span class="label-full">Loading/Roll</span><span class="label-short">LR</span></th>
+                <th class="col-num col-group-end" rowspan="2"><span class="label-full">Net Kg (L/R)</span><span class="label-short">Net Kg</span></th>
+                <th class="col-num col-group-end" rowspan="2"><span class="label-full">Workers (L/R)</span><span class="label-short">Wrk</span></th>
+                <th colspan="3" class="col-group-header">Plant 5</th>
+                <th colspan="3" class="col-group-header">Plant 6</th>
+                <th colspan="3" class="col-group-header">Warp Plant</th>
+                <th rowspan="2">Remark</th>
+            </tr>
+            <tr>
+                <th class="col-num"><span class="label-full">Weight/Roll</span><span class="label-short">WR</span></th>
+                <th class="col-num"><span class="label-full">Net Kg (W/R)</span><span class="label-short">Net Kg</span></th>
+                <th class="col-num col-group-end"><span class="label-full">Workers</span><span class="label-short">Wrk</span></th>
+                <th class="col-num"><span class="label-full">Weight/Roll</span><span class="label-short">WR</span></th>
+                <th class="col-num"><span class="label-full">Net Kg (W/R)</span><span class="label-short">Net Kg</span></th>
+                <th class="col-num col-group-end"><span class="label-full">Workers</span><span class="label-short">Wrk</span></th>
+                <th class="col-num"><span class="label-full">Weight/Roll</span><span class="label-short">WR</span></th>
+                <th class="col-num"><span class="label-full">Net Kg (W/R)</span><span class="label-short">Net Kg</span></th>
+                <th class="col-num col-group-end"><span class="label-full">Workers</span><span class="label-short">Wrk</span></th>
             </tr>
         </thead>
         <tbody>
@@ -50,14 +62,21 @@ same markup instead of repeating it. Expected context variables:
                 {% if show_select %}
                 <td class="col-select"><label class="select-cell"><input type="checkbox" {% if checkbox_class %}class="{{ checkbox_class }}" {% endif %}{% if checkbox_name %}name="{{ checkbox_name }}" {% endif %}value="{{ entry.id }}" aria-label="{{ checkbox_aria_label|default:"Select row" }}"></label></td>
                 {% endif %}
-                {% if show_serial %}<td>{% if use_serial_field %}{{ entry.serial_number }}{% else %}{{ forloop.counter }}{% endif %}</td>{% endif %}
-                <td>{{ entry.date }}</td>
+                {% if show_serial %}<td class="col-serial">{% if use_serial_field %}{{ entry.serial_number }}{% else %}{{ forloop.counter }}{% endif %}</td>{% endif %}
+                <td class="col-date"><span class="label-full">{{ entry.date }}</span><span class="label-short">{{ entry.date|date:"d/m/y" }}</span></td>
                 <td class="col-vehicle">{{ entry.vehicle_number|default:"—" }}</td>
-                <td>{% if entry.loading_roll is not None %}{{ entry.loading_roll }}{% else %}—{% endif %}</td>
-                <td>{% if entry.net_kg_loading_roll is not None %}{{ entry.net_kg_loading_roll }} kg{% else %}—{% endif %}</td>
-                <td>{% if entry.weight_roll is not None %}{{ entry.weight_roll }}{% else %}—{% endif %}</td>
-                <td>{% if entry.net_kg_weight_roll is not None %}{{ entry.net_kg_weight_roll }} kg{% else %}—{% endif %}</td>
-                <td>{% if entry.workers is not None %}{{ entry.workers }}{% else %}—{% endif %}</td>
+                <td class="col-num col-group-end">{% if entry.loading_roll is not None %}{{ entry.loading_roll }}{% else %}—{% endif %}</td>
+                <td class="col-num col-group-end col-value-success">{% if entry.net_kg_loading_roll is not None %}{{ entry.net_kg_loading_roll }} kg{% else %}—{% endif %}</td>
+                <td class="col-num col-group-end col-value-warning">{% if entry.workers is not None %}{{ entry.workers }}{% else %}—{% endif %}</td>
+                <td class="col-num">{% if entry.plant5_weight_roll is not None %}{{ entry.plant5_weight_roll }}{% else %}—{% endif %}</td>
+                <td class="col-num col-value-success">{% if entry.plant5_net_kg_weight_roll is not None %}{{ entry.plant5_net_kg_weight_roll }} kg{% else %}—{% endif %}</td>
+                <td class="col-num col-group-end col-value-warning">{% if entry.plant5_workers is not None %}{{ entry.plant5_workers }}{% else %}—{% endif %}</td>
+                <td class="col-num">{% if entry.plant6_weight_roll is not None %}{{ entry.plant6_weight_roll }}{% else %}—{% endif %}</td>
+                <td class="col-num col-value-success">{% if entry.plant6_net_kg_weight_roll is not None %}{{ entry.plant6_net_kg_weight_roll }} kg{% else %}—{% endif %}</td>
+                <td class="col-num col-group-end col-value-warning">{% if entry.plant6_workers is not None %}{{ entry.plant6_workers }}{% else %}—{% endif %}</td>
+                <td class="col-num">{% if entry.warp_weight_roll is not None %}{{ entry.warp_weight_roll }}{% else %}—{% endif %}</td>
+                <td class="col-num col-value-success">{% if entry.warp_net_kg_weight_roll is not None %}{{ entry.warp_net_kg_weight_roll }} kg{% else %}—{% endif %}</td>
+                <td class="col-num col-group-end col-value-warning">{% if entry.warp_workers is not None %}{{ entry.warp_workers }}{% else %}—{% endif %}</td>
                 <td>{{ entry.remark|default:"—" }}</td>
             </tr>
             {% empty %}

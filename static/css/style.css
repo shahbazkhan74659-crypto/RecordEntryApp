@@ -1,12 +1,37 @@
 :root {
-    --color-bg: #f5f6f8;
-    --color-surface: #ffffff;
-    --color-border: #dfe2e6;
-    --color-text: #1f2430;
-    --color-muted: #667085;
-    --color-primary: #2563eb;
-    --color-primary-dark: #1d4ed8;
+    --sidebar-width: 240px;
     --radius: 6px;
+    --radius-lg: 14px;
+
+    /* Surfaces: page < sidebar < surface < surface-2, each a step lighter,
+       for depth without needing shadows to do all the work. */
+    --color-bg: #0b1220;
+    --color-sidebar-bg: #0a0f1d;
+    --color-surface: #16233d;
+    --color-surface-2: #1c2942;
+    --color-border: #283754;
+
+    --color-text: #e8ecf3;
+    --color-muted: #93a0b8;
+
+    --color-primary: #3b82f6;
+    --color-primary-dark: #2563eb;
+    --color-primary-light: #1e3a5f;
+
+    --color-success: #22c55e;
+    --color-success-dark: #16a34a;
+    --color-warning: #f59e0b;
+
+    --color-danger: #ef4444;
+    --color-danger-dark: #dc2626;
+
+    /* Table body rows only -- kept neutral (no blue undertone) on purpose
+       so the header row (var(--color-surface), above) reads as the one
+       dark-blue element and the entry rows read as plain black/grey. */
+    --color-row-black: #0c0d11;
+    --color-row-grey: #1a1b20;
+    --color-row-border: rgba(255, 255, 255, 0.08);
+    --color-row-border-strong: rgba(255, 255, 255, 0.18);
 }
 
 * {
@@ -27,23 +52,171 @@ body {
     padding: 0 1.25rem;
 }
 
-.site-header {
-    background: var(--color-surface);
-    border-bottom: 1px solid var(--color-border);
+/* App shell: fixed-width sidebar + fluid content area, replacing the old
+   top-nav header. Sidebar is sticky/full-height at desktop, becomes an
+   off-canvas drawer at mobile (see the 768px query below). */
+.app-shell {
+    display: flex;
+    min-height: 100vh;
 }
 
-.header-inner {
+.sidebar {
+    width: var(--sidebar-width);
+    flex: 0 0 var(--sidebar-width);
+    background: var(--color-sidebar-bg);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 1rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sidebar-brand {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 1rem 0;
-    max-width: 1320px;
+    gap: 0.6rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--color-text);
+    padding: 0 0.5rem;
+    margin-bottom: 2rem;
 }
 
-/* Must stay above the 768px query below — equal specificity means source
-   order decides, and flipping it would hide this permanently at mobile. */
-.hamburger-btn {
+.brand-logo {
+    height: 40px;
+    width: auto;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.sidebar-nav-link {
+    display: block;
+    padding: 0.65rem 1rem;
+    border-radius: 999px;
+    color: var(--color-muted);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.sidebar-nav-link:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.sidebar-nav-link.active {
+    background: var(--color-primary);
+    color: #fff;
+    font-weight: 600;
+}
+
+.sidebar-spacer {
+    flex: 1;
+}
+
+.sidebar-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.75rem 0.5rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.sidebar-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.sidebar-avatar svg {
+    width: 22px;
+    height: 22px;
+}
+
+.sidebar-profile-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.sidebar-profile-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar-profile-role {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+}
+
+.sidebar-logout-form {
+    display: flex;
+    flex-shrink: 0;
+}
+
+.sidebar-logout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
+.sidebar-logout-btn:hover {
+    background: var(--color-surface);
+    color: var(--color-danger);
+}
+
+.sidebar-logout-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Off-canvas backdrop for the mobile sidebar drawer -- reuses .modal-overlay's
+   opacity/visibility toggle via the .visible class, same convention every
+   other modal in this app uses. It has no child content of its own (the
+   sidebar itself is the sliding panel, positioned fixed outside this
+   element), so none of .modal-overlay's flex-centering rules matter here.
+   Compound selector (not a lone .mobile-nav-overlay class) is required here
+   -- .modal-overlay's own z-index:300 rule (further down in this file) has
+   equal specificity to a single-class .mobile-nav-overlay selector, so
+   source order alone would let it win back to 300, tying with #sidebar's
+   z-index there and letting DOM order (this overlay comes after #sidebar
+   in base.html) put the overlay's blur on top of the sidebar instead of
+   behind it -- the exact bug this rule fixes. */
+.modal-overlay.mobile-nav-overlay {
+    z-index: 299;
+}
+
+.mobile-topbar {
     display: none;
+}
+
+.hamburger-btn {
+    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -64,108 +237,91 @@ body {
     background: var(--color-text);
 }
 
-/* Below 768px, Home/Batch nav links and .site-nav collapse into the
-   hamburger-triggered off-canvas drawer (nav.js relocates them into
-   #mobile-nav-panel, outside .header-inner). */
-@media (max-width: 768px) {
-    .header-inner {
-        padding-left: 1.25rem;
-        padding-right: 1.25rem;
-    }
-
-    .header-inner .brand-group .nav-link {
-        display: none;
-    }
-
-    .header-inner .site-nav {
-        display: none;
-    }
-
-    .hamburger-btn {
-        display: flex;
-    }
-}
-
-.brand-group {
-    display: flex;
-    align-items: center;
-    gap: 1.75rem;
-    margin-left: -0.75rem;
-}
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--color-text);
-}
-
-.brand-logo {
-    height: 44px;
+.mobile-topbar-logo {
+    height: 32px;
     width: auto;
 }
 
-.nav-link {
-    position: relative;
-    color: var(--color-muted);
-    text-decoration: none;
-    font-weight: 500;
-    padding-bottom: 4px;
-    margin-left: 0.5rem;
+.mobile-topbar-brand {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--color-text);
 }
 
-.nav-link:hover {
-    color: var(--color-primary);
-}
-
-.nav-link.active {
-    color: #f87171;
-}
-
-.nav-link.active::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    height: 2px;
-    width: 100%;
-    background: #ef4444;
-    border-radius: 2px;
-    box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.7);
-    transform-origin: left;
-    animation: underline-glow-grow 0.5s ease forwards;
-}
-
-@keyframes underline-glow-grow {
-    from {
-        transform: scaleX(0);
-    }
-    to {
-        transform: scaleX(1);
-    }
-}
-
-.site-nav a {
-    color: var(--color-muted);
-    text-decoration: none;
-    font-weight: 500;
-    margin-left: 1.5rem;
-}
-
-.site-nav a:hover {
-    color: var(--color-primary);
-}
-
-.site-nav {
-    display: flex;
+/* Mobile-only Account Setting trigger, sitting in the sidebar's spare
+   vertical space just above the profile row (not squeezed inside it as an
+   icon) -- shares the .open-account-settings-btn class with the desktop
+   button in .content-topbar (see account-settings.js), so both open the
+   same modal; only one of the two is ever visible at a given viewport
+   width (this one hidden by default, .content-topbar hidden below 768px
+   instead — see that rule's own 768px block further down). Same pill
+   styling as the desktop button it mirrors (a.btn-outline/button.btn-outline). */
+.sidebar-account-settings-btn {
+    display: none;
     align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.65rem 1rem;
+    margin-bottom: 1rem;
+    border: 2px solid var(--color-primary);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-primary);
+    font-weight: 700;
+    font-size: 0.95rem;
+    font-family: inherit;
+    cursor: pointer;
 }
 
-.logout-form {
-    display: inline;
-    margin-left: 0.75rem;
+.sidebar-account-settings-btn:hover {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.sidebar-account-settings-btn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .sidebar-account-settings-btn {
+        display: flex;
+    }
+
+    .mobile-topbar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--color-sidebar-bg);
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    /* NOTE: hiding .content-topbar itself (so Account Setting moves into
+       the sidebar instead — .sidebar-account-settings-btn above) is NOT
+       done in this early media query block. Its base, unconditional
+       .content-topbar{display:flex} rule (further down this file) has
+       equal selector specificity and would win the cascade over a rule
+       placed here (later source position beats an earlier media query at
+       equal specificity, regardless of nesting) -- see the actual override,
+       placed after that base rule, further down in this file's main
+       768px block. */
+
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 300;
+        box-shadow: 8px 0 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
 }
 
 a.btn-outline,
@@ -173,9 +329,9 @@ button.btn-outline {
     display: inline-block;
     padding: 0.5rem 1.25rem;
     border-radius: 9999px;
-    border: 2px solid var(--color-text);
-    background: #ffffff;
-    color: #000000;
+    border: 2px solid var(--color-primary);
+    background: transparent;
+    color: var(--color-primary);
     font-weight: 700;
     font-size: 1rem;
     font-family: inherit;
@@ -185,119 +341,32 @@ button.btn-outline {
 
 a.btn-outline:hover,
 button.btn-outline:hover {
-    background: #000000;
+    background: var(--color-primary);
     color: #ffffff;
 }
 
-.link-button {
-    background: #fca5a5;
-    border: 2px solid transparent;
-    padding: 0.5rem 1.25rem;
-    border-radius: 9999px;
-    color: #000000;
-    font-weight: 700;
-    font-size: 1rem;
-    font-family: inherit;
-    cursor: pointer;
-}
-
-.link-button:hover {
-    background: #f87171;
-}
-
-/* #mobile-nav-overlay reuses .modal-overlay's backdrop/visibility toggle via
-   an id-selector specificity win (no !important) — same technique as
-   #range-modal's z-index override further down. .modal-card isn't reused
-   here since it's built for a centered dialog, not a full-height drawer. */
-#mobile-nav-overlay {
-    justify-content: flex-end;
-    align-items: stretch;
-}
-
-.mobile-nav-panel {
-    position: relative;
-    background: var(--color-surface);
-    width: 260px;
-    max-width: 80vw;
-    height: 100vh;
-    height: 100dvh;
-    padding: 4.5rem 1.5rem 1.5rem;
-    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.25);
+.app-content {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
-    overflow-y: auto;
-    transform: translateX(100%);
-    transition: transform 0.25s ease;
 }
 
-#mobile-nav-overlay.visible .mobile-nav-panel {
-    transform: translateX(0);
-}
-
-.mobile-nav-close {
-    position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    width: 2.75rem;
-    height: 2.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    font-size: 1.75rem;
-    line-height: 1;
-    color: var(--color-text);
-    cursor: pointer;
-}
-
-.mobile-nav-panel .nav-link {
-    display: block;
-    margin-left: 0;
-    padding: 0.6rem 0;
-    font-size: 1.05rem;
-}
-
-/* margin-top: auto pushes .site-nav (Account Setting + Logout) to the
-   bottom of this flex column, leaving Home/Batch top-aligned above it. */
-.mobile-nav-panel .site-nav {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-    width: 100%;
-    margin-top: auto;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--color-border);
-}
-
-.mobile-nav-panel .site-nav a,
-.mobile-nav-panel .logout-form {
-    margin-left: 0;
-}
-
-.mobile-nav-panel .logout-form {
-    display: block;
-}
-
-.mobile-nav-panel .btn-outline,
-.mobile-nav-panel .link-button {
-    display: block;
-    width: 100%;
-    text-align: center;
-}
-
-main.container {
-    padding-top: 1rem;
-    padding-bottom: 2rem;
-    min-height: calc(100vh - 140px);
+.app-main {
+    flex: 1;
+    padding: 2rem 2.5rem;
 }
 
 /* Toggled by home.js while #selection-bar is visible, so the fixed bar
    doesn't sit on top of the last table row(s)/pagination. */
-main.container.has-selection-bar {
+.app-main.has-selection-bar {
     padding-bottom: 8rem;
+}
+
+.content-topbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
 }
 
 .messages {
@@ -318,10 +387,10 @@ main.container.has-selection-bar {
     max-width: 360px;
     padding: 0.85rem 1.1rem;
     border-radius: var(--radius);
-    background: #eef2ff;
-    border: 1px solid #c7d2fe;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
     color: var(--color-text);
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
     opacity: 0;
     transform: translateY(16px);
     transition: opacity 0.3s ease, transform 0.3s ease;
@@ -333,13 +402,13 @@ main.container.has-selection-bar {
 }
 
 .messages .message.success {
-    background: #ecfdf3;
-    border-color: #a7f3d0;
+    background: rgba(34, 197, 94, 0.12);
+    border-color: var(--color-success);
 }
 
 .messages .message.error {
-    background: #fef2f2;
-    border-color: #fecaca;
+    background: rgba(239, 68, 68, 0.12);
+    border-color: var(--color-danger);
 }
 
 h1, h2, h3 {
@@ -352,8 +421,6 @@ h1, h2, h3 {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.5rem 1rem;
-    margin-left: -200px;
-    margin-right: -200px;
     margin-bottom: 1.5rem;
 }
 
@@ -367,15 +434,70 @@ h1, h2, h3 {
     margin: 0;
 }
 
+.greeting-sep {
+    margin: 0 0.35rem;
+    color: var(--color-border);
+}
+
+.stat-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 0.85rem 1.25rem;
+}
+
+.stat-sparkline {
+    width: 60px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.stat-label {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.78rem;
+}
+
+.stat-value {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+/* home.html renders the stat card twice -- .stat-cards-desktop in its
+   normal standalone position above .page-header, and .stat-cards-mobile as
+   the first child of .new-entry-actions, sharing that row with Save/+New
+   Record -- and this pair of rules picks exactly one at a time (mobile
+   variant hidden by default, swapped below 768px in the media query below
+   where .stat-cards-desktop is hidden instead). Rendering it twice (rather
+   than one instance moved around) is safe here since, unlike
+   #open-account-settings, stat_cards.html has no unique ids for JS to key
+   off — just the decorative sparkline. */
+.stat-cards-mobile {
+    display: none;
+}
+
 .table-wrapper {
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    /* Bold high-contrast outer frame, distinct from the blue interior grid
+       lines -- near-white rather than literal black, since black would be
+       nearly invisible against this theme's near-black page background. */
+    border: 3px solid var(--color-text);
     border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     overflow-x: auto;
     overflow-y: hidden;
-    margin-left: -200px;
-    margin-right: -200px;
 }
 
 .new-entry-bar {
@@ -384,8 +506,6 @@ h1, h2, h3 {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.75rem;
-    margin-left: -200px;
-    margin-right: -200px;
     margin-top: -0.75rem;
     margin-bottom: 1rem;
 }
@@ -440,7 +560,7 @@ h1, h2, h3 {
     padding: 0 1rem;
     border: none;
     border-radius: var(--radius);
-    background: #e2e8f0;
+    background: var(--color-surface-2);
     color: var(--color-text);
     font-size: 0.85rem;
     font-weight: 600;
@@ -448,7 +568,7 @@ h1, h2, h3 {
 }
 
 .date-filter-clear:hover {
-    background: #cbd5e1;
+    background: var(--color-border);
 }
 
 .entry-search-input {
@@ -460,7 +580,7 @@ h1, h2, h3 {
     border-radius: var(--radius);
     font-size: 0.9rem;
     color: var(--color-text);
-    background: #fff;
+    background: var(--color-surface-2);
     margin-left: 1.5rem;
 }
 
@@ -510,15 +630,15 @@ h1, h2, h3 {
 
 .pagination-link {
     padding: 0.5rem 1.1rem;
-    border: 2px solid var(--color-text);
+    border: 2px solid var(--color-border);
     border-radius: 9999px;
-    background: #fff;
-    color: #000;
+    background: var(--color-surface-2);
+    color: var(--color-text);
     font-weight: 700;
     font-size: 0.9rem;
     text-decoration: none;
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .pagination-link.pagination-icon {
@@ -532,7 +652,8 @@ h1, h2, h3 {
 }
 
 .pagination-link:hover {
-    background: #000;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
     color: #fff;
 }
 
@@ -549,11 +670,26 @@ h1, h2, h3 {
 }
 
 @media (max-width: 768px) {
-    .page-header,
-    .table-wrapper,
-    .new-entry-bar {
-        margin-left: 0;
-        margin-right: 0;
+    /* Account Setting moves into the sidebar on mobile
+       (.sidebar-account-settings-btn, shown via its own 768px rule above)
+       instead of floating as its own row at the top of the page content.
+       Placed in *this* 768px block (rather than the earlier one, right
+       after .mobile-topbar) specifically because it must come after the
+       base, unconditional .content-topbar{display:flex} rule in source
+       order to win the cascade at equal specificity — this block is. */
+    .content-topbar {
+        display: none;
+    }
+
+    /* Frees up real width for content on a narrow phone -- the base 2rem/
+       2.5rem padding (meant for desktop's much wider canvas) was eating a
+       disproportionate share of a ~375-414px viewport, which is what left
+       .admin-greeting too little room to fit "Welcome, X | Time: HH:MM:SS"
+       on one line below. Top padding specifically is cut further (0.5rem,
+       not 1.5rem) so the greeting sits right under .mobile-topbar instead
+       of leaving a large gap — sides/bottom keep the more generous value. */
+    .app-main {
+        padding: 0.5rem 1.25rem 1.5rem;
     }
 
     /* order:-1 stacks the greeting above the heading via flexbox reordering
@@ -561,11 +697,27 @@ h1, h2, h3 {
     .page-header {
         flex-direction: column;
         align-items: flex-start;
-        gap: 0.5rem;
+        gap: 0.15rem;
     }
 
+    /* width:100% overrides .page-header's align-items:flex-start (which
+       would otherwise shrink this <p> to its own content width, the actual
+       cause of the wrap this fixes -- "Welcome, X | Time: HH:MM:SS" was
+       being measured against a narrower box than the row actually has room
+       for) so it spans the full row edge-to-edge. white-space:nowrap +
+       the ellipsis fallback keep it on that one line even for an unusually
+       long username. No top padding — this should sit right after
+       .mobile-topbar with minimal gap; small bottom padding only, to
+       separate it from .page-title below without much space. */
     .admin-greeting {
         order: -1;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0 0.1rem 0.1rem;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     /* h1 has no base font-size of its own (inherits the browser default,
@@ -578,13 +730,7 @@ h1, h2, h3 {
         min-width: 0;
     }
 
-    /* main.container-qualified to out-specify the later, equal-specificity
-       unconditional .batch-grid rule below (declared after this one, so it
-       would otherwise win at every viewport width regardless of source
-       order inside this media query). */
-    main.container .batch-grid {
-        margin-left: 0;
-        margin-right: 0;
+    main.app-main .batch-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 
@@ -604,53 +750,135 @@ h1, h2, h3 {
     }
 
     .date-filter-btn {
-        width: 2.5rem;
-        height: 2.5rem;
+        width: 2.2rem;
+        height: 2.2rem;
     }
 
     .date-filter-clear {
-        min-width: 2rem;
-        height: 2.5rem;
-        padding: 0 0.6rem;
-        font-size: 0.78rem;
+        min-width: 1.8rem;
+        height: 2.2rem;
+        padding: 0 0.5rem;
+        font-size: 0.72rem;
     }
 
     /* flex:1 + min-width:0 lets the input fill leftover row width instead
        of overflowing at its default unconstrained content width. Joined
        into one pill with .entry-search-btn below via matching squared
-       corners + a canceling negative margin. 40px controls here, under the
-       44px touch-target floor — no room for more alongside New Record/Save
-       on a narrow phone. */
+       corners + a canceling negative margin. Already under the 44px
+       touch-target floor — no room for more alongside New Record/Save on a
+       narrow phone. */
     .date-filter .entry-search-input {
         flex: 1;
         min-width: 0;
-        height: 2.5rem;
-        padding: 0 0.6rem;
-        font-size: 0.85rem;
+        height: 2.2rem;
+        padding: 0 0.5rem;
+        font-size: 0.78rem;
         border-radius: var(--radius) 0 0 var(--radius);
         border-right: none;
     }
 
     .date-filter .entry-search-btn {
-        width: 2.5rem;
-        height: 2.5rem;
+        width: 2.2rem;
+        height: 2.2rem;
         margin-left: -0.5rem;
         border-radius: 0 var(--radius) var(--radius) 0;
     }
 
-    /* width:100% lets this lone wrapped-line child use its own
-       justify-content:flex-end to stay right-aligned once .date-filter
-       wraps onto its own line (space-between alone has no effect on a
-       single child occupying a full wrapped row). */
-    .new-entry-actions {
-        width: 100%;
-        justify-content: flex-end;
-        gap: 0.5rem;
+    /* Swaps which of the two stat-card renders is visible (see the
+       .stat-cards-mobile rule up near .stat-card) — the mobile one is now
+       the first child of .new-entry-actions (see home.html), sharing that
+       same row with Save/+New Record via .new-entry-actions' own
+       flex/gap/justify-content:flex-end below, rather than sitting on its
+       own row or squeezed next to the search bar. Compact (small
+       sparkline, no label) so all three fit one row on a narrow phone
+       without looking like an oversized desktop card shrunk down badly. */
+    .stat-cards-desktop {
+        display: none;
     }
 
-    .new-entry-actions .btn {
-        padding: 0.45rem 0.85rem;
-        font-size: 0.85rem;
+    /* Explicit width:100% (grid stretch handles this too, but being
+       explicit costs nothing) -- and margin-bottom:0 to cancel the base
+       .stat-cards rule's margin-bottom:1.5rem (meant for the standalone
+       desktop card's spacing above the table, not this mobile variant
+       sharing a row with Save/+New Record). Confirmed via direct
+       getBoundingClientRect measurement in a live tab that this
+       leftover margin was the actual cause of the height mismatch: it
+       was consuming 24px out of this item's stretched grid-row height
+       that the unconstrained Save/+New Record buttons didn't have to
+       give up, making this box measurably shorter than the other two
+       despite every width number already being pixel-equal. */
+    .stat-cards-mobile {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        margin-bottom: 0;
+    }
+
+    /* Shared by all three of .new-entry-actions' children -- the stat
+       card, Save, and +New Record all carry this exact class in the
+       markup (home.html / stat_cards.html) specifically so their sizing
+       comes from ONE rule instead of three separately-maintained copies
+       that can drift out of sync. Only sizing/box-model lives here --
+       color/identity stays on each element's own class (.stat-card,
+       .btn, .btn-success). Qualified as .new-entry-actions
+       .new-entry-action-box (not the bare class) so its specificity
+       (0,2,0) reliably beats the base .btn rule's padding/font-size
+       (0,1,0), which is declared later in this file with no media guard
+       — a bare-class rule here would lose that fight on source order
+       alone despite living inside this narrower media query. */
+    .new-entry-actions .new-entry-action-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        width: 100%;
+        height: 100%;
+        padding: 0.4rem 0.5rem;
+        border-radius: var(--radius);
+        font-size: 0.78rem;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stat-cards-mobile .stat-sparkline {
+        width: 26px;
+        height: 14px;
+        flex-shrink: 0;
+    }
+
+    /* Label dropped — no room for "Total daily weight" once the stat card
+       shares a row with two buttons on a narrow phone; the sparkline +
+       value alone still read as "a stat", and the label is still available
+       as the card's own title attribute (see home.html) for anyone who
+       taps/hovers to check. */
+    .stat-cards-mobile .stat-label {
+        display: none;
+    }
+
+    .stat-cards-mobile .stat-value {
+        font-size: inherit;
+        white-space: nowrap;
+    }
+
+    /* Grid, not flex, on purpose: this row holds 3 children --
+       .stat-cards-mobile, Save, +New Record -- and the stat card's own
+       sized box (.stat-card) sits one DOM level below .stat-cards-mobile
+       (which is the actual direct child here), while Save/+New Record
+       *are* direct children themselves. That extra nesting level made
+       flex-grow equalization unreliable (a flex item's grown width
+       doesn't reliably hand off to a width:100% grandchild the same way
+       across browsers/paths), so this uses 3 explicit equal grid tracks
+       instead -- minmax(0, 1fr) each, guaranteed identical regardless of
+       content or DOM depth -- and every grid item stretches to fill its
+       track on both axes by grid's own default (no extra rule needed,
+       unlike flex's align-items). */
+    .new-entry-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 100%;
+        gap: 0.5rem;
     }
 
     /* Compact mode: shows only checkbox/S.No/Date without horizontal scroll;
@@ -662,40 +890,83 @@ h1, h2, h3 {
        min-width instead (below) so it can't be auto-layout-squeezed down to
        a character-per-line column keeps it legible, but also reliably pushes
        it (and the rest) past the viewport into the scrollable region. */
+    /* Target column count that must fit one phone screen without scroll:
+       through Net Kg (L/R), 6 columns (relaxed from "through Plant 5" --
+       see the 480px block below for why). This 768px block covers wider
+       phones/small tablets (481-768px) so has more room than that block
+       and can afford less aggressive compaction. */
     .table-wrapper th,
     .table-wrapper td {
-        padding: 0.5rem 0.6rem;
-        font-size: 0.75rem;
+        padding: 0.45rem 0.35rem;
+        font-size: 0.72rem;
     }
 
     .table-wrapper th {
-        font-size: 0.68rem;
+        font-size: 0.64rem;
+    }
+
+    .table-wrapper .label-full {
+        display: none;
+    }
+
+    .table-wrapper .label-short {
+        display: inline;
     }
 
     .table-wrapper th.col-select,
     .table-wrapper td.col-select {
-        width: 2rem;
-        padding-left: 0.4rem;
-        padding-right: 0.4rem;
+        width: 1.6rem;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
     }
 
-    /* min-width (not max-width) is the load-bearing part here: table-layout
-       auto is otherwise free to shrink this column toward its min-content,
-       which overflow-wrap:anywhere makes as small as a single character --
-       that's what produced a one-letter-per-line column. max-width still
-       caps how wide it grows once scrolled to. */
+    /* S.No/Date have no size class at all by default (auto-content-sized) --
+       capped here for the same reason col-num/col-vehicle are: 10 columns
+       need to fit one phone screen through the end of Plant 5.
+       width (not just min/max-width) is the load-bearing part everywhere
+       in this block: table-layout:auto treats a cell's own max-width as
+       only a soft hint (confirmed by measuring real rendered widths in a
+       live tab -- cells kept rendering wider than their max-width alone
+       declared), but does treat width as authoritative. min/max are kept
+       alongside as belt-and-suspenders bounds. */
+    .table-wrapper th.col-serial,
+    .table-wrapper td.col-serial {
+        width: 1.8rem;
+        min-width: 1.8rem;
+        max-width: 1.8rem;
+    }
+
+    .table-wrapper th.col-date,
+    .table-wrapper td.col-date {
+        width: 2.6rem;
+        min-width: 2.6rem;
+        max-width: 2.6rem;
+        overflow-wrap: anywhere;
+    }
+
     .table-wrapper th.col-vehicle,
     .table-wrapper td.col-vehicle {
-        min-width: 160px;
-        max-width: 220px;
+        width: 100px;
+        min-width: 90px;
+        max-width: 120px;
+    }
+
+    /* Base .col-num (elsewhere in this file) is min-width:4.5rem (72px) --
+       fine on desktop, and close enough to fine here too now that only
+       Loading/Roll + Net Kg (L/R) need to fit alongside checkbox/S.No/
+       Date/Vehicle Number -- Workers (L/R) onward still scroll. */
+    .table-wrapper .col-num {
+        width: 4rem;
+        min-width: 4rem;
+        max-width: 4rem;
     }
 
     /* Mirrors col-select's smaller padding here so the tap-target label
        still fills the (now smaller) cell exactly. ~32px tap area, under
        the 44px floor — no room for more alongside 3 text columns here. */
     .table-wrapper .col-select .select-cell {
-        margin: -0.5rem -0.4rem;
-        padding: 0.5rem 0.4rem;
+        margin: -0.45rem -0.25rem;
+        padding: 0.45rem 0.25rem;
     }
 
     /* order:1 + flex-basis:100% puts the status line on its own row below
@@ -733,12 +1004,7 @@ h1, h2, h3 {
         font-size: 0.78rem;
     }
 
-    /* Ancestor-qualified for the same reason as .batch-grid above — the
-       later unconditional .batch-search-bar rule shares its specificity
-       and would otherwise win at every width. */
-    main.container .batch-search-bar {
-        margin-left: 0;
-        margin-right: 0;
+    main.app-main .batch-search-bar {
         justify-content: flex-start;
     }
 
@@ -762,37 +1028,34 @@ h1, h2, h3 {
     }
 
     /* Shrinks the 4 selection-bar buttons/gaps so they stay on one row
-       instead of wrapping 2x2 on narrow phones. Ancestor-qualified
-       (main.container) to out-specify the later base .selection-bar rule
-       below — same specificity bug/fix pattern as .batch-grid/
-       .batch-search-bar above. Padding restored to 1.5rem so the outer
-       buttons clear the pill's border-radius:999px curve once "N selected"
-       wraps to its own line above (a 2-row-tall pill has a bigger corner
-       radius than a 1-row one, tightening clearance at the bottom
-       corners). */
-    main.container .selection-bar {
+       instead of wrapping 2x2 on narrow phones. Padding restored to
+       1.5rem so the outer buttons clear the pill's border-radius:999px
+       curve once "N selected" wraps to its own line above (a 2-row-tall
+       pill has a bigger corner radius than a 1-row one, tightening
+       clearance at the bottom corners). */
+    main.app-main .selection-bar {
         gap: 0.6rem;
         padding: 0.6rem 1.5rem;
     }
 
-    main.container .selection-count {
+    main.app-main .selection-count {
         font-size: 0.8rem;
     }
 
     /* nowrap here is belt-and-suspenders on top of the sizing above:
        guarantees the 4 buttons can't split 2x2 regardless of minor
        viewport/font-metric variance. */
-    main.container .selection-actions {
+    main.app-main .selection-actions {
         flex-wrap: nowrap;
         gap: 0.5rem;
     }
 
     /* 36px here, under the 44px floor — no room to hold 44px x4 plus gaps
        on one row on a narrow phone. */
-    main.container .btn-edit,
-    main.container .btn-group,
-    main.container .btn-delete,
-    main.container .btn-download {
+    main.app-main .btn-edit,
+    main.app-main .btn-group,
+    main.app-main .btn-delete,
+    main.app-main .btn-download {
         width: 2.25rem;
         height: 2.25rem;
         border-radius: 8px;
@@ -808,71 +1071,100 @@ h1, h2, h3 {
 }
 
 @media (max-width: 480px) {
-    /* Same ancestor-qualified fix as the 768px block above. */
-    main.container .batch-grid {
+    main.app-main .batch-grid {
         grid-template-columns: 1fr;
     }
 
     .date-filter-btn {
-        width: 2.25rem;
-        height: 2.25rem;
+        width: 2rem;
+        height: 2rem;
     }
 
     .date-filter-clear {
-        min-width: 1.75rem;
-        height: 2.25rem;
-        padding: 0 0.5rem;
-        font-size: 0.72rem;
+        min-width: 1.6rem;
+        height: 2rem;
+        padding: 0 0.45rem;
+        font-size: 0.68rem;
     }
 
     .date-filter .entry-search-input {
         flex: 1;
         min-width: 0;
-        height: 2.25rem;
-        padding: 0 0.5rem;
-        font-size: 0.8rem;
+        height: 2rem;
+        padding: 0 0.45rem;
+        font-size: 0.74rem;
     }
 
     .date-filter .entry-search-btn {
-        width: 2.25rem;
-        height: 2.25rem;
+        width: 2rem;
+        height: 2rem;
     }
 
     .new-entry-actions {
         gap: 0.4rem;
     }
 
-    .new-entry-actions .btn {
-        padding: 0.4rem 0.7rem;
-        font-size: 0.8rem;
+    .new-entry-actions .new-entry-action-box {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.72rem;
     }
 
+    /* Target column count that must fit one phone screen without scroll
+       was relaxed from "through Plant 5" (10 columns) to "through Net Kg
+       (L/R)" (6 columns) after the denser version made numeric cells wrap
+       to 3 cramped lines (e.g. "8782." / "00" / "kg") that read as
+       overlapping/messy. Fewer required columns means each one gets
+       meaningfully more room -- these values target 1-2 clean wrapped
+       lines per numeric cell instead of 3. */
     .table-wrapper th,
     .table-wrapper td {
-        padding: 0.4rem 0.45rem;
+        padding: 0.4rem 0.35rem;
         font-size: 0.7rem;
     }
 
     .table-wrapper th {
-        font-size: 0.62rem;
+        font-size: 0.6rem;
     }
 
     .table-wrapper th.col-select,
     .table-wrapper td.col-select {
-        width: 1.75rem;
-        padding-left: 0.3rem;
-        padding-right: 0.3rem;
+        width: 1.6rem;
+        padding-left: 0.2rem;
+        padding-right: 0.2rem;
+    }
+
+    .table-wrapper th.col-serial,
+    .table-wrapper td.col-serial {
+        width: 1.8rem;
+        min-width: 1.8rem;
+        max-width: 1.8rem;
+    }
+
+    .table-wrapper th.col-date,
+    .table-wrapper td.col-date {
+        width: 2.8rem;
+        min-width: 2.8rem;
+        max-width: 2.8rem;
     }
 
     .table-wrapper th.col-vehicle,
     .table-wrapper td.col-vehicle {
-        min-width: 140px;
-        max-width: 180px;
+        width: 102px;
+        min-width: 92px;
+        max-width: 115px;
+    }
+
+    /* Narrower still than the 768px block's 2.6rem -- see that rule (and
+       its width note) for why .col-num needs overriding at all here. */
+    .table-wrapper .col-num {
+        width: 3.8rem;
+        min-width: 3.8rem;
+        max-width: 3.8rem;
     }
 
     .table-wrapper .col-select .select-cell {
-        margin: -0.4rem -0.3rem;
-        padding: 0.4rem 0.3rem;
+        margin: -0.4rem -0.2rem;
+        padding: 0.4rem 0.2rem;
     }
 
     .pagination {
@@ -918,23 +1210,23 @@ h1, h2, h3 {
     /* Padding bumped to 1.5rem again — same border-radius-vs-wrapped-height
        corner-clearance reasoning as the 768px block above, recomputed for
        this block's smaller button/gap values. */
-    main.container .selection-bar {
+    main.app-main .selection-bar {
         gap: 0.5rem;
         padding: 0.5rem 1.5rem;
     }
 
-    main.container .selection-count {
+    main.app-main .selection-count {
         font-size: 0.75rem;
     }
 
-    main.container .selection-actions {
+    main.app-main .selection-actions {
         gap: 0.4rem;
     }
 
-    main.container .btn-edit,
-    main.container .btn-group,
-    main.container .btn-delete,
-    main.container .btn-download {
+    main.app-main .btn-edit,
+    main.app-main .btn-group,
+    main.app-main .btn-delete,
+    main.app-main .btn-download {
         width: 2rem;
         height: 2rem;
         border-radius: 7px;
@@ -949,39 +1241,90 @@ h1, h2, h3 {
     }
 }
 
+/* min-width (not a fixed width) so the table can grow past the wrapper's
+   width when there are enough columns to need it (the 20-column entries
+   table) -- .table-wrapper's overflow-x:auto then scrolls instead of every
+   column being squeezed to fit, which is what happened with a fixed 100%
+   width once Vehicle Number and 15 plant columns were all competing for
+   the same capped total (Vehicle Number would shrink so far its text
+   wrapped one letter per line). A table with few enough columns to fit
+   still stretches to fill the wrapper, unchanged from before. */
 table {
-    width: 100%;
+    min-width: 100%;
     border-collapse: collapse;
 }
 
+/* .label-full/.label-short: header labels like "Loading/Roll" and body
+   dates like "Aug. 12, 2026" are the actual width bottleneck on a narrow
+   phone (table auto-layout expands a column to fit its longest
+   unbreakable content, not just min-width) -- confirmed by measuring real
+   rendered column widths in a live tab. Below 768px (see that media
+   query) these swap to short forms so enough columns fit one screen
+   without horizontal scroll; full text stays the default everywhere
+   else. */
+.label-short {
+    display: none;
+}
+
+/* No :last-child border-right removal here (there used to be one) -- with
+   a 2-row grouped thead, the sub-header row's last cell (e.g. Warp
+   Plant's "Workers") is also its row's :last-child even though it isn't
+   the table's true rightmost column (Remark, rowspan from row 1, still
+   follows it) -- stripping that border created a visible notch: a border
+   segment present for row 1's height, then missing for row 2's height, at
+   the same vertical grid line. Leaving every column's border-right in
+   place (including the true last column, Remark) just adds a thin inner
+   line next to .table-wrapper's own bold outer frame, which is fine. */
 th, td {
     padding: 0.85rem 1rem;
     text-align: left;
-    border-bottom: 1px solid var(--color-border);
-    border-right: 1px solid var(--color-border);
 }
 
-th:last-child, td:last-child {
-    border-right: none;
+/* Entry rows use a neutral grid (var(--color-row-border)), not the header's
+   blue -- see the tbody background rule below for the black/grey striping
+   this pairs with. */
+td {
+    border-bottom: 1px solid var(--color-row-border);
+    border-right: 1px solid var(--color-row-border);
 }
 
 th {
-    background: #16233d;
+    background: var(--color-surface);
     font-weight: 600;
     font-size: 0.8rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #e2e8f0;
+    color: var(--color-text);
     border-bottom: none;
-    border-right-color: rgba(255, 255, 255, 0.12);
+    border-right: 1px solid var(--color-primary);
+}
+
+/* Restore a divider between the header and the first body row -- with the
+   2-row grouped thead (see entries_table.html), the cells that actually
+   reach the bottom of the header are either row 2's cells (the plant
+   sub-headers) or row 1's rowspan="2" cells (S.No, Date, Vehicle Number,
+   etc., which visually span the full header height). Row 1's colspan
+   group-header cells (Plant 5/6/Warp Plant) are deliberately excluded --
+   their bottom edge sits between row 1 and row 2, not at the tbody
+   boundary, and giving them this same border would double up with the one
+   already separating them from their own sub-headers. */
+thead tr:last-child th,
+thead tr:first-child th[rowspan] {
+    border-bottom: 1px solid var(--color-primary);
+}
+
+/* Black/grey zebra striping for entry rows -- only the header (above) is
+   dark blue; every body row is one of these two neutral tones. */
+tbody tr:nth-child(odd) {
+    background: var(--color-row-black);
 }
 
 tbody tr:nth-child(even) {
-    background: #f8fafc;
+    background: var(--color-row-grey);
 }
 
 tbody tr:hover {
-    background: #eef2ff;
+    background: rgba(59, 130, 246, 0.08);
 }
 
 tbody tr:last-child td {
@@ -1003,9 +1346,71 @@ td.col-select {
    .table-wrapper's horizontal scroll. */
 th.col-vehicle,
 td.col-vehicle {
+    min-width: 140px;
     max-width: 260px;
     overflow-wrap: anywhere;
     word-break: break-word;
+}
+
+/* The per-plant/Loading numeric columns -- a min-width keeps them from
+   collapsing too narrow under the table's auto layout. Border-right is a
+   lighter blue than the main grid lines, since these divide sub-columns
+   *within* a group (Loading/Plant 5/Plant 6/Warp Plant) rather than
+   marking a structural boundary -- .col-group-end below restores the
+   full-strength color on the last sub-column of each group, at the same
+   1px weight as every other border (no thickness difference, color only). */
+/* overflow-wrap/word-break let headers like "Loading/Roll" and
+   "Weight/Roll" break at the slash instead of forcing the whole unbroken
+   word into the column width regardless of min-width -- table auto-layout
+   otherwise expands the column to fit that single unbreakable token,
+   which was defeating the narrower min-width set for mobile below (a
+   column measured ~90px wide instead of the ~38px min-width intended,
+   confirmed by measuring real rendered header widths in a live tab). No
+   visible effect at desktop widths, where the column is already wider
+   than the text needs. */
+.col-num {
+    min-width: 4.5rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    border-right-color: var(--color-primary-light);
+}
+
+/* Body cells only (higher specificity than the bare .col-num/.col-group-end
+   above, which stay blue for th so the header keeps its own themed
+   grouping) -- entry-row group dividers use the same neutral tones as
+   the rest of the body grid instead of blue. */
+td.col-num {
+    border-right-color: var(--color-row-border);
+}
+
+.col-group-header {
+    text-align: center;
+}
+
+/* Marks the last column of each group (Loading/Plant 5/Plant 6/Warp
+   Plant) with the full-strength border color, echoing the hand-drawn
+   ledger's boxed-group style -- same 1px weight as every other border,
+   just not lightened like .col-num's sub-column dividers above. */
+.col-group-end {
+    border-right-color: var(--color-primary);
+}
+
+/* Body cells only -- see td.col-num above for why this is split out. */
+td.col-group-end {
+    border-right-color: var(--color-row-border-strong);
+}
+
+/* Color-codes the Net Kg and Workers columns (layered on top of .col-num/
+   .col-group-end above, which only touch border-color/min-width, so no
+   conflict) -- Net Kg values in green, Workers counts in amber. */
+.col-value-success {
+    color: var(--color-success);
+    font-weight: 600;
+}
+
+.col-value-warning {
+    color: var(--color-warning);
+    font-weight: 600;
 }
 
 .row-select {
@@ -1028,17 +1433,20 @@ td.col-vehicle {
 }
 
 tbody tr.selected {
-    background: #dbeafe;
+    background: rgba(59, 130, 246, 0.15);
     box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
 tbody tr.selected:hover {
-    background: #dbeafe;
+    background: rgba(59, 130, 246, 0.15);
 }
 
+/* left centers over .app-content (viewport minus the sidebar) at desktop
+   widths; the 768px query below resets to plain 50% since the sidebar is
+   off-canvas there and the content area is the full viewport again. */
 .selection-bar {
     position: fixed;
-    left: 50%;
+    left: calc(50% + calc(var(--sidebar-width) / 2));
     bottom: 40px;
     z-index: 100;
     display: flex;
@@ -1052,13 +1460,19 @@ tbody tr.selected:hover {
     background: rgba(22, 35, 61, 0.85);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.35);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     color: #fff;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transform: translate(-50%, 24px);
     transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s;
+}
+
+@media (max-width: 768px) {
+    .selection-bar {
+        left: 50%;
+    }
 }
 
 .selection-bar.visible {
@@ -1142,7 +1556,7 @@ tbody tr.selected:hover {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.55);
+    background: rgba(0, 0, 0, 0.65);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     display: flex;
@@ -1161,11 +1575,12 @@ tbody tr.selected:hover {
 
 .modal-card {
     background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 1.75rem;
     max-width: 360px;
     width: calc(100% - 2rem);
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.35);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
     transform: translateY(12px) scale(0.98);
     transition: transform 0.2s ease;
 }
@@ -1222,14 +1637,14 @@ tbody tr.selected:hover {
 }
 
 .modal-btn-cancel {
-    background: #fff;
-    border-color: var(--color-text);
+    background: transparent;
+    border-color: var(--color-border);
     color: var(--color-text);
 }
 
 .modal-btn-cancel:hover {
-    background: var(--color-text);
-    color: #fff;
+    background: var(--color-border);
+    color: var(--color-text);
 }
 
 .modal-btn-confirm {
@@ -1267,6 +1682,8 @@ tbody tr.selected:hover {
     border-radius: var(--radius);
     font-size: 0.95rem;
     margin-bottom: 1.5rem;
+    background: var(--color-surface-2);
+    color: var(--color-text);
 }
 
 .save-options {
@@ -1281,7 +1698,7 @@ tbody tr.selected:hover {
     padding: 0.65rem 1rem;
     border-radius: var(--radius);
     border: 1px solid var(--color-border);
-    background: #fff;
+    background: var(--color-surface-2);
     color: var(--color-text);
     font-size: 0.95rem;
     font-weight: 600;
@@ -1291,7 +1708,7 @@ tbody tr.selected:hover {
 }
 
 .save-option-btn:hover {
-    background: #eef2ff;
+    background: var(--color-primary-light);
     border-color: var(--color-primary);
 }
 
@@ -1317,6 +1734,7 @@ tbody tr.selected:hover {
     border: none;
     cursor: pointer;
     font-size: 0.95rem;
+    font-family: inherit;
 }
 
 .btn:hover {
@@ -1331,6 +1749,14 @@ tbody tr.selected:hover {
     background: #b91c1c;
 }
 
+.btn-success {
+    background: var(--color-success);
+}
+
+.btn-success:hover {
+    background: var(--color-success-dark);
+}
+
 form input,
 form select,
 form textarea {
@@ -1340,6 +1766,8 @@ form textarea {
     border-radius: var(--radius);
     font-size: 0.95rem;
     margin-bottom: 1rem;
+    background: var(--color-surface-2);
+    color: var(--color-text);
 }
 
 form label {
@@ -1349,15 +1777,15 @@ form label {
 }
 
 .field-error {
-    color: #b91c1c;
+    color: #f87171;
     font-size: 0.85rem;
     margin: -0.75rem 0 1rem;
 }
 
 .form-error {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid var(--color-danger);
+    color: #f87171;
     padding: 0.75rem 1rem;
     border-radius: var(--radius);
     margin-bottom: 1.5rem;
@@ -1367,6 +1795,21 @@ form label {
     display: flex;
     align-items: center;
     gap: 1rem;
+}
+
+/* Groups each plant's numeric fields on the New/Edit Entry form, matching
+   the paper ledger's Plant 5/Plant 6/Warp Plant boxed layout. */
+.entry-plant-fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem 0.5rem;
+    margin: 0 0 1.25rem;
+}
+
+.entry-plant-fieldset legend {
+    font-weight: 700;
+    padding: 0 0.4rem;
+    color: var(--color-primary);
 }
 
 .card {
@@ -1380,8 +1823,6 @@ form label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-left: -200px;
-    margin-right: -200px;
     margin-bottom: 1.5rem;
 }
 
@@ -1393,23 +1834,21 @@ form label {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
-    margin-left: -200px;
-    margin-right: -200px;
 }
 
 .batch-card {
     position: relative;
     background: var(--color-surface);
-    border: 1px solid var(--color-text);
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 1.25rem 1.5rem;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
     transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .batch-card:hover {
-    background: #e2e8f0;
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+    background: var(--color-surface-2);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
 }
 
 .batch-card-link {
@@ -1437,7 +1876,7 @@ form label {
 }
 
 .batch-card-menu-btn:hover {
-    background: rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.08);
     color: var(--color-text);
 }
 
@@ -1448,10 +1887,10 @@ form label {
     right: 0.6rem;
     z-index: 3;
     min-width: 130px;
-    background: var(--color-surface);
+    background: var(--color-surface-2);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.2);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
     overflow: hidden;
 }
 
@@ -1473,16 +1912,16 @@ form label {
 }
 
 .batch-card-menu-item:hover {
-    background: #f1f5f9;
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .batch-card-menu-delete {
-    color: #dc2626;
+    color: #f87171;
     border-top: 1px solid var(--color-border);
 }
 
 .batch-card-menu-delete:hover {
-    background: #fef2f2;
+    background: rgba(239, 68, 68, 0.12);
 }
 
 .batch-card-name {
@@ -1557,9 +1996,9 @@ form label {
     margin-top: 1rem;
     padding: 0.5rem 1rem;
     border-radius: var(--radius);
-    background: #fff;
+    background: transparent;
     border: 2px solid #dc2626;
-    color: #dc2626;
+    color: #f87171;
     cursor: pointer;
     font-size: 0.95rem;
     font-weight: 600;
@@ -1603,7 +2042,7 @@ form label {
     width: 100%;
     margin: 1.5rem auto 0;
     border-radius: 16px;
-    border-color: #6b7280;
+    border-color: var(--color-border);
 }
 
 .login-card h1 {
@@ -1628,8 +2067,8 @@ form label {
 }
 
 .login-card button.btn-outline:disabled:hover {
-    background: #ffffff;
-    color: #000000;
+    background: transparent;
+    color: var(--color-primary);
 }
 
 /* Card/logo/text shrink at mobile, scoped under .login-card so nothing
@@ -1645,8 +2084,6 @@ form label {
     .login-card {
         max-width: 260px;
         padding: 1.25rem;
-        /* Lighter than the base #6b7280 — reads heavy on a card this small. */
-        border-color: #9ca3ae;
     }
 
     .login-card h1 {
@@ -1697,7 +2134,6 @@ form label {
     .login-card {
         max-width: 220px;
         padding: 1rem;
-        border-color: #9ca3ae;
     }
 
     .login-card h1 {
@@ -1794,7 +2230,7 @@ form label {
 }
 
 .modal-card .form-note {
-    color: #b91c1c;
+    color: #f87171;
     font-size: 0.85rem;
     margin: -0.5rem 0 1rem;
     min-height: 1.1em;
@@ -1805,7 +2241,7 @@ form label {
 }
 
 .modal-card .form-note-success {
-    color: #15803d;
+    color: #4ade80;
 }
 
 .field-hint {
@@ -1829,7 +2265,7 @@ form label {
 }
 
 .email-confirmed-tick {
-    color: #15803d;
+    color: #4ade80;
     font-weight: 700;
 }
 

@@ -31,6 +31,14 @@ REMARKS = [
     'Customer requested extra padding.',
 ]
 
+PLANTS = ['plant5', 'plant6', 'warp']
+
+# Fraction of seeded entries where every plant is active (a normal day). The
+# rest have activity at only 1-2 plants -- realistic (a plant can be idle
+# for a given truck/day) and it exercises the "--" null-display path for a
+# whole plant group, not just an individual field.
+ALL_PLANTS_ACTIVE_CHANCE = 0.7
+
 
 def random_vehicle_number():
     state = random.choice(STATE_CODES)
@@ -40,24 +48,50 @@ def random_vehicle_number():
     return f"{state}{rto}{series}{number:04d}"
 
 
-def build_entry(date):
+def random_loading_values():
+    """Loading is global (rolls from every active plant physically mix and
+    get loaded onto the truck together) -- every entry gets one of these,
+    unlike the per-plant packing values below."""
     loading_roll = random.randint(40, 220)
     per_roll_kg = random.randint(60, 75)
     net_kg_loading_roll = int(loading_roll * per_roll_kg * random.uniform(0.97, 1.03))
+    return {
+        'loading_roll': loading_roll,
+        'net_kg_loading_roll': net_kg_loading_roll,
+        'workers': random.randint(2, 8),
+    }
 
+
+def random_plant_values():
+    """A single plant's packing/weighing stage: how many rolls it weighed
+    and with how many workers -- independent of loading, since a truck's
+    load can be sourced from any mix of the three plants."""
     weight_roll = random.randint(55, 80)
-    net_kg_weight_roll = int(loading_roll * weight_roll * random.uniform(0.97, 1.03))
+    net_kg_weight_roll = int(weight_roll * random.randint(60, 75) * random.uniform(0.97, 1.03))
+    return {
+        'weight_roll': weight_roll,
+        'net_kg_weight_roll': net_kg_weight_roll,
+        'workers': random.randint(2, 8),
+    }
 
-    return Entry(
-        date=date,
-        vehicle_number=random_vehicle_number(),
-        loading_roll=loading_roll,
-        net_kg_loading_roll=net_kg_loading_roll,
-        weight_roll=weight_roll,
-        net_kg_weight_roll=net_kg_weight_roll,
-        workers=random.randint(2, 8),
-        remark=random.choice(REMARKS),
-    )
+
+def build_entry(date):
+    if random.random() < ALL_PLANTS_ACTIVE_CHANCE:
+        active_plants = PLANTS
+    else:
+        active_plants = random.sample(PLANTS, k=random.randint(1, 2))
+
+    kwargs = {
+        'date': date,
+        'vehicle_number': random_vehicle_number(),
+        'remark': random.choice(REMARKS),
+        **random_loading_values(),
+    }
+    for plant in active_plants:
+        for field, value in random_plant_values().items():
+            kwargs[f'{plant}_{field}'] = value
+
+    return Entry(**kwargs)
 
 
 class Command(BaseCommand):

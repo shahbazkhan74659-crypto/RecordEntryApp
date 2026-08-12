@@ -5,6 +5,7 @@ __pycache__/
 .env
 db.sqlite3
 db.sqlite3.bak-*
+db_backups/
 
 node_modules/
 static/js/dist/

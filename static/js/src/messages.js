@@ -1,3 +1,5 @@
+import { initLiveClock } from "./lib/live-clock.js";
+
 function activateToast(item) {
   requestAnimationFrame(() => item.classList.add("show"));
 
@@ -27,4 +29,5 @@ window.showToast = showToast;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".messages .message").forEach(activateToast);
+  initLiveClock();
 });

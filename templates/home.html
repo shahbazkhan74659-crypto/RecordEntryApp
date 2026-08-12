@@ -4,8 +4,10 @@
 {% block title %}Entries — Entry Recorder{% endblock %}
 
 {% block content %}
+    {% include "partials/stat_cards.html" with extra_class="stat-cards-desktop" %}
+
     <div class="page-header">
-        <h1 class="page-title">Truck Loading Entries</h1>
+        <h1 class="page-title">Loading Entries</h1>
         {% include "partials/admin_greeting.html" %}
     </div>
 
@@ -24,12 +26,13 @@
             {% include "partials/search_bar.html" %}
         </div>
         <div class="new-entry-actions">
-            <button type="button" id="save-pdf-btn" class="btn">Save</button>
-            <a href="{% url 'create_entry' %}" class="btn btn-danger">+ New Record</a>
+            {% include "partials/stat_cards.html" with extra_class="stat-cards-mobile" %}
+            <button type="button" id="save-pdf-btn" class="btn new-entry-action-box">Save</button>
+            <a href="{% url 'create_entry' %}" class="btn btn-success new-entry-action-box">+ New Record</a>
         </div>
     </div>
 
-    {% include "partials/entries_table.html" with entries=entries show_select=True select_all=True checkbox_class="row-select" show_serial=True use_serial_field=True empty_message=empty_message colspan=10 %}
+    {% include "partials/entries_table.html" with entries=entries show_select=True select_all=True checkbox_class="row-select" show_serial=True use_serial_field=True empty_message=empty_message colspan=17 %}
 
     {% include "partials/pagination.html" with pagination_noun_singular="entry" pagination_noun_plural="entries" %}
 

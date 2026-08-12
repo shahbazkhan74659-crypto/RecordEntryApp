@@ -1,8 +1,18 @@
 {% comment %}
 Shared card/form scaffold for new_entry.html and edit_entry.html — both
-render the same form.errors banner, {% for field in form %} loop, and
-form-actions Save/Cancel pair; only the submit button's label differs
-between the two pages, passed in as `submit_label`.
+render the same form.errors banner, form fields, and form-actions
+Save/Cancel pair; only the submit button's label differs between the two
+pages, passed in as `submit_label`.
+
+Explicit per-field markup (not a generic {% for field in form %} loop, as
+this used to be) so the numeric fields can be visually grouped into
+<fieldset>s: one "Loading" fieldset (global — rolls from every plant mix
+together before loading, so there's one shared loading count, not a
+per-plant one) plus three Plant 5/Plant 6/Warp Plant fieldsets (each just
+that plant's own packing/weighing stage) — a generic loop can't express
+that grouping without a custom template tag, which is more machinery than
+four flat, greppable blocks for a set of exactly 3 real plants plus one
+global section.
 {% endcomment %}
 <div class="card">
     {% if form.errors %}
@@ -12,12 +22,82 @@ between the two pages, passed in as `submit_label`.
     <form method="post" novalidate>
         {% csrf_token %}
 
-        {% for field in form %}
-            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% for error in field.errors %}
-                <p class="field-error">{{ error }}</p>
-            {% endfor %}
+        <label for="{{ form.date.id_for_label }}">{{ form.date.label }}</label>
+        {{ form.date }}
+        {% for error in form.date.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
+
+        <label for="{{ form.vehicle_number.id_for_label }}">{{ form.vehicle_number.label }}</label>
+        {{ form.vehicle_number }}
+        {% for error in form.vehicle_number.errors %}
+            <p class="field-error">{{ error }}</p>
+        {% endfor %}
+
+        <fieldset class="entry-plant-fieldset">
+            <legend>Loading</legend>
+            <label for="{{ form.loading_roll.id_for_label }}">{{ form.loading_roll.label }}</label>
+            {{ form.loading_roll }}
+            {% for error in form.loading_roll.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+            <label for="{{ form.net_kg_loading_roll.id_for_label }}">{{ form.net_kg_loading_roll.label }}</label>
+            {{ form.net_kg_loading_roll }}
+            {% for error in form.net_kg_loading_roll.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+            <label for="{{ form.workers.id_for_label }}">{{ form.workers.label }}</label>
+            {{ form.workers }}
+            {% for error in form.workers.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        </fieldset>
+
+        <fieldset class="entry-plant-fieldset">
+            <legend>Plant 5</legend>
+            <label for="{{ form.plant5_weight_roll.id_for_label }}">{{ form.plant5_weight_roll.label }}</label>
+            {{ form.plant5_weight_roll }}
+            {% for error in form.plant5_weight_roll.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+            <label for="{{ form.plant5_net_kg_weight_roll.id_for_label }}">{{ form.plant5_net_kg_weight_roll.label }}</label>
+            {{ form.plant5_net_kg_weight_roll }}
+            {% for error in form.plant5_net_kg_weight_roll.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+            <label for="{{ form.plant5_workers.id_for_label }}">{{ form.plant5_workers.label }}</label>
+            {{ form.plant5_workers }}
+            {% for error in form.plant5_workers.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        </fieldset>
+
+        <fieldset class="entry-plant-fieldset">
+            <legend>Plant 6</legend>
+            <label for="{{ form.plant6_weight_roll.id_for_label }}">{{ form.plant6_weight_roll.label }}</label>
+            {{ form.plant6_weight_roll }}
+            {% for error in form.plant6_weight_roll.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+            <label for="{{ form.plant6_net_kg_weight_roll.id_for_label }}">{{ form.plant6_net_kg_weight_roll.label }}</label>
+            {{ form.plant6_net_kg_weight_roll }}
+            {% for error in form.plant6_net_kg_weight_roll.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+            <label for="{{ form.plant6_workers.id_for_label }}">{{ form.plant6_workers.label }}</label>
+            {{ form.plant6_workers }}
+            {% for error in form.plant6_workers.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        </fieldset>
+
+        <fieldset class="entry-plant-fieldset">
+            <legend>Warp Plant</legend>
+            <label for="{{ form.warp_weight_roll.id_for_label }}">{{ form.warp_weight_roll.label }}</label>
+            {{ form.warp_weight_roll }}
+            {% for error in form.warp_weight_roll.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+            <label for="{{ form.warp_net_kg_weight_roll.id_for_label }}">{{ form.warp_net_kg_weight_roll.label }}</label>
+            {{ form.warp_net_kg_weight_roll }}
+            {% for error in form.warp_net_kg_weight_roll.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+            <label for="{{ form.warp_workers.id_for_label }}">{{ form.warp_workers.label }}</label>
+            {{ form.warp_workers }}
+            {% for error in form.warp_workers.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        </fieldset>
+
+        <label for="{{ form.remark.id_for_label }}">{{ form.remark.label }}</label>
+        {{ form.remark }}
+        {% for error in form.remark.errors %}
+            <p class="field-error">{{ error }}</p>
         {% endfor %}
 
         <div class="form-actions">

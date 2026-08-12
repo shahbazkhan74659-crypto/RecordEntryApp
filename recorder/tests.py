@@ -77,8 +77,8 @@ class After100RangeExportTests(TestCase):
         Entry.objects.bulk_create([
             Entry(
                 vehicle_number=f'MH12AB{i:04d}',
-                loading_roll=10, net_kg_loading_roll=100,
-                weight_roll=10, net_kg_weight_roll=100, workers=1,
+                loading_roll=10, net_kg_loading_roll=100, workers=1,
+                plant5_weight_roll=10, plant5_net_kg_weight_roll=100, plant5_workers=1,
                 remark='' if i % 2 else f'note {i}',
             )
             for i in range(1, 126)
@@ -167,8 +167,8 @@ class ChooseExportMatchesAppSerialNumberTests(TestCase):
         Entry.objects.bulk_create([
             Entry(
                 vehicle_number=f'MH12CD{i:04d}',
-                loading_roll=10, net_kg_loading_roll=100,
-                weight_roll=10, net_kg_weight_roll=100, workers=1, remark='',
+                loading_roll=10, net_kg_loading_roll=100, workers=1,
+                plant5_weight_roll=10, plant5_net_kg_weight_roll=100, plant5_workers=1, remark='',
             )
             for i in range(1, 31)
         ])
@@ -218,13 +218,13 @@ class ChooseExportMatchesAppSerialNumberTests(TestCase):
 
 
 class PdfTotalsRowTests(TestCase):
-    """The exported PDF ends with a summary 'Total' row across the four
-    numeric roll/net-kg columns (Loading/Roll, Net Kg (Loading/Roll),
-    Weight/Roll, Net Kg (Weight/Roll)) — added per an explicit client
-    request after reviewing a downloaded PDF. S.No/Date/Workers/Remark stay
-    blank on that row; a None field on an individual entry counts as 0
-    toward the sum (it renders as '—' on its own row, but shouldn't make
-    the total wrong)."""
+    """The exported PDF ends with a summary 'Total' row: Loading/Roll and
+    Net Kg (Loading/Roll) are global (rolls from every plant mix together
+    before loading), while Weight/Roll and Net Kg (Weight/Roll) are summed
+    separately per plant — added per an explicit client request after
+    reviewing a downloaded PDF. S.No/Date/Workers/Remark stay blank on that
+    row; a None field on an individual entry counts as 0 toward the sum (it
+    renders as '—' on its own row, but shouldn't make the total wrong)."""
 
     @classmethod
     def setUpTestData(cls):
@@ -232,9 +232,9 @@ class PdfTotalsRowTests(TestCase):
         Entry.objects.bulk_create([
             Entry(
                 vehicle_number=f'MH12EF{i:04d}',
-                loading_roll=Decimal(i), net_kg_loading_roll=Decimal(i) * 10,
-                weight_roll=Decimal(i) * 2, net_kg_weight_roll=Decimal(i) * 20,
-                workers=1, remark='',
+                loading_roll=Decimal(i), net_kg_loading_roll=Decimal(i) * 10, workers=1,
+                plant5_weight_roll=Decimal(i) * 2, plant5_net_kg_weight_roll=Decimal(i) * 20,
+                plant5_workers=1, remark='',
             )
             for i in range(1, 6)
         ])
@@ -249,9 +249,11 @@ class PdfTotalsRowTests(TestCase):
         response = self.client.post('/entries/download-pdf/', {'scope': 'all'})
         text = PdfReader(BytesIO(response.content)).pages[-1].extract_text()
         self.assertIn('Total', text)
-        # loading_roll: 1+2+3+4+5=15, net_kg_loading_roll: 10*(1+..+5)=150,
-        # weight_roll: 2*(1+..+5)=30, net_kg_weight_roll: 20*(1+..+5)=300 —
-        # the blank-fields entry contributes 0 to each.
+        # loading_roll: 1+2+3+4+5=15, net_kg_loading_roll: 10*(1+..+5)=150
+        # (global totals), weight_roll: 2*(1+..+5)=30, net_kg_weight_roll:
+        # 20*(1+..+5)=300 (Plant 5's totals; Plant 6/Warp Plant are
+        # untouched here so their totals are 0) — the blank-fields entry
+        # contributes 0 to each.
         self.assertIn('15.00', text)
         self.assertIn('150.00 kg', text)
         self.assertIn('30.00', text)
@@ -263,6 +265,46 @@ class PdfTotalsRowTests(TestCase):
         text = PdfReader(BytesIO(response.content)).pages[-1].extract_text()
         self.assertIn('Total', text)
         self.assertIn('15.00', text)
+
+
+class PdfPerPlantTotalsTests(TestCase):
+    """Regression coverage for the global Loading total plus the three
+    independent per-plant Weight/Roll totals — proves the global loading
+    figures and each plant's own weight figures are all computed from their
+    own columns only, not cross-contaminated with each other (the
+    single-group PdfTotalsRowTests above can't catch a bug where e.g. Plant
+    6 values leak into Plant 5's sum, or a plant's weight leaks into the
+    global loading total)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='tester_plant_totals', password='pw12345!Strong')
+        # Distinct, easily-recognizable values per group so a mixed-up total
+        # would show up as the wrong number rather than coincidentally
+        # matching another group's expected sum.
+        Entry.objects.create(
+            vehicle_number='MH12GH0001',
+            loading_roll=Decimal('11'), net_kg_loading_roll=Decimal('12'), workers=1,
+            plant5_weight_roll=Decimal('23'), plant5_net_kg_weight_roll=Decimal('24'), plant5_workers=1,
+            plant6_weight_roll=Decimal('33'), plant6_net_kg_weight_roll=Decimal('34'), plant6_workers=2,
+            warp_weight_roll=Decimal('43'), warp_net_kg_weight_roll=Decimal('44'), warp_workers=3,
+            remark='',
+        )
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_loading_and_each_plants_totals_are_computed_independently(self):
+        response = self.client.post('/entries/download-pdf/', {'scope': 'all'})
+        text = PdfReader(BytesIO(response.content)).pages[-1].extract_text()
+        for value in ('11.00', '12.00 kg'):
+            self.assertIn(value, text)
+        for value in ('23.00', '24.00 kg'):
+            self.assertIn(value, text)
+        for value in ('33.00', '34.00 kg'):
+            self.assertIn(value, text)
+        for value in ('43.00', '44.00 kg'):
+            self.assertIn(value, text)
 
 
 class After100RangeExportAtProductionScaleTests(TestCase):
@@ -278,8 +320,8 @@ class After100RangeExportAtProductionScaleTests(TestCase):
         Entry.objects.bulk_create([
             Entry(
                 vehicle_number=f'MH12AB{i:04d}',
-                loading_roll=10, net_kg_loading_roll=100,
-                weight_roll=10, net_kg_weight_roll=100, workers=1,
+                loading_roll=10, net_kg_loading_roll=100, workers=1,
+                plant5_weight_roll=10, plant5_net_kg_weight_roll=100, plant5_workers=1,
                 remark='' if i % 2 else f'note {i}',
             )
             for i in range(1, 1122)
@@ -321,13 +363,81 @@ class After100RangeExportAtProductionScaleTests(TestCase):
         self.assertEqual(pdf_serials, list(range(1101, 1122)))
 
 
+class MultiPlantEntryTests(TestCase):
+    """Coverage for the global-Loading + per-plant-Weight schema
+    (migrations 0012_entry_multi_plant.py, then
+    0013_entry_global_loading.py): loading_roll/net_kg_loading_roll/workers
+    are global (rolls from every active plant mix together before loading,
+    so there's one shared loading count, not a per-plant one), while each
+    plant only tracks its own Weight/Roll + Net Kg (W/R) + workers for its
+    packing/weighing stage. An entry with the global Loading fields and
+    only Plant 5's weight fields populated must round-trip with Plant
+    6/Warp Plant's fields reading back None -- the direct proxy for "did
+    the 500 real rows these migrations were run against survive
+    correctly", since neither migration has data-transformation logic to
+    test beyond the renames themselves."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username='multiplant', password='pw12345!Strong')
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_plant5_only_entry_leaves_other_plants_null(self):
+        entry = Entry.objects.create(
+            vehicle_number='MH12ZZ0001',
+            loading_roll=Decimal('60'), net_kg_loading_roll=Decimal('4047'), workers=2,
+            plant5_weight_roll=Decimal('68'), plant5_net_kg_weight_roll=Decimal('4143'),
+            plant5_workers=2, remark='',
+        )
+        entry.refresh_from_db()
+        self.assertEqual(entry.loading_roll, Decimal('60.00'))
+        self.assertEqual(entry.workers, 2)
+        self.assertEqual(entry.plant5_weight_roll, Decimal('68.00'))
+        for field in (
+            'plant6_weight_roll', 'plant6_net_kg_weight_roll', 'plant6_workers',
+            'warp_weight_roll', 'warp_net_kg_weight_roll', 'warp_workers',
+        ):
+            with self.subTest(field=field):
+                self.assertIsNone(getattr(entry, field))
+
+    def test_home_page_renders_dash_for_untouched_plants(self):
+        Entry.objects.create(
+            vehicle_number='MH12ZZ0002',
+            loading_roll=Decimal('60'), workers=2, remark='',
+        )
+        html = self.client.get('/').content.decode()
+        self.assertIn('60.00', html)
+        # Plant 5/6/Warp Plant columns render as em-dashes for this row
+        # since none of their weight fields were ever populated.
+        self.assertIn('—', html)
+
+    def test_creating_an_entry_with_only_plant5_fields_saves_others_as_null(self):
+        response = self.client.post('/entries/new/', {
+            'date': '2026-01-15',
+            'vehicle_number': 'MH12ZZ0003',
+            'loading_roll': '50', 'net_kg_loading_roll': '3000', 'workers': '3',
+            'plant5_weight_roll': '55', 'plant5_net_kg_weight_roll': '3100', 'plant5_workers': '3',
+            'remark': '',
+        })
+        self.assertRedirects(response, '/')
+        entry = Entry.objects.get(vehicle_number='MH12ZZ0003')
+        self.assertEqual(entry.loading_roll, Decimal('50.00'))
+        self.assertEqual(entry.plant5_weight_roll, Decimal('55.00'))
+        self.assertIsNone(entry.plant6_weight_roll)
+        self.assertIsNone(entry.plant6_workers)
+        self.assertIsNone(entry.warp_weight_roll)
+        self.assertIsNone(entry.warp_workers)
+
+
 def extract_row_id_sno_pairs(html):
     """Reads (entry id, S.No) per row out of the home page's rendered HTML,
     via each row's select checkbox value (the entry's real pk) paired with
     the S.No cell that immediately follows it."""
     return [
         (int(pk), int(sno))
-        for pk, sno in re.findall(r'value="(\d+)" aria-label="Select row"></label></td>\s*<td>(\d+)</td>', html)
+        for pk, sno in re.findall(r'value="(\d+)" aria-label="Select row"></label></td>\s*<td[^>]*>(\d+)</td>', html)
     ]
 
 
@@ -350,8 +460,8 @@ class HomePagePaginationTests(TestCase):
             # too (not just the unfiltered 65-row case).
             Entry(
                 vehicle_number=f'{"MH" if i % 2 == 0 else "DL"}12AB{i:04d}',
-                loading_roll=10, net_kg_loading_roll=100,
-                weight_roll=10, net_kg_weight_roll=100, workers=1, remark='',
+                loading_roll=10, net_kg_loading_roll=100, workers=1,
+                plant5_weight_roll=10, plant5_net_kg_weight_roll=100, plant5_workers=1, remark='',
             )
             for i in range(1, 66)  # 65 rows -> 3 pages of 30/30/5
         ], batch_size=500)

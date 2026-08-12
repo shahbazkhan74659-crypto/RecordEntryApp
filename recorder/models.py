@@ -33,6 +33,20 @@ class Batch(models.Model):
 class Entry(models.Model):
     date = models.DateField(default=timezone.localdate)
     vehicle_number = models.CharField(max_length=150, null=True, blank=True)
+
+    # Loading — global, not per-plant. Per the client (whose father runs the
+    # three plants): rolls are packed/weighed separately at Plant 5/Plant
+    # 6/Warp Plant, but then physically mix together and get loaded onto the
+    # truck as one combined operation by one shared group of loading
+    # workers — there's no such thing as "Plant 5's loading count", only a
+    # single loading count for the truck. These 3 fields were briefly
+    # (migration 0012_entry_multi_plant.py) folded into "Plant 5" under the
+    # mistaken assumption loading was also per-plant; migration
+    # 0013_entry_global_loading.py un-does that by renaming them back to
+    # global, un-prefixed names — this also happens to restore their
+    # original pre-multi-plant meaning, since the app's real historical
+    # `workers` data was always a loading-worker count, never tied to any
+    # plant.
     loading_roll = models.DecimalField(
         verbose_name='Loading/Roll', max_digits=10, decimal_places=2,
         null=True, blank=True, validators=[MinValueValidator(0)],
@@ -41,15 +55,44 @@ class Entry(models.Model):
         verbose_name='Net Kg (Loading/Roll)', max_digits=10, decimal_places=2,
         null=True, blank=True, validators=[MinValueValidator(0)],
     )
-    weight_roll = models.DecimalField(
+    workers = models.PositiveIntegerField(verbose_name='Workers', null=True, blank=True)
+
+    # Plant 5/6/Warp Plant — each now only tracks that plant's own
+    # packing/weighing stage (Weight/Roll, Net Kg (W/R), and that plant's
+    # own packing workers) since loading itself is global (see above).
+    # verbose_name is deliberately bare (not "Plant 5 — Weight/Roll") since
+    # group identity comes from surrounding context (form fieldset legend,
+    # admin fieldset, table/PDF group header) in every place these render.
+    plant5_weight_roll = models.DecimalField(
         verbose_name='Weight/Roll', max_digits=10, decimal_places=2,
         null=True, blank=True, validators=[MinValueValidator(0)],
     )
-    net_kg_weight_roll = models.DecimalField(
+    plant5_net_kg_weight_roll = models.DecimalField(
         verbose_name='Net Kg (Weight/Roll)', max_digits=10, decimal_places=2,
         null=True, blank=True, validators=[MinValueValidator(0)],
     )
-    workers = models.PositiveIntegerField(null=True, blank=True)
+    plant5_workers = models.PositiveIntegerField(verbose_name='Workers', null=True, blank=True)
+
+    plant6_weight_roll = models.DecimalField(
+        verbose_name='Weight/Roll', max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    plant6_net_kg_weight_roll = models.DecimalField(
+        verbose_name='Net Kg (Weight/Roll)', max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    plant6_workers = models.PositiveIntegerField(verbose_name='Workers', null=True, blank=True)
+
+    warp_weight_roll = models.DecimalField(
+        verbose_name='Weight/Roll', max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    warp_net_kg_weight_roll = models.DecimalField(
+        verbose_name='Net Kg (Weight/Roll)', max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(0)],
+    )
+    warp_workers = models.PositiveIntegerField(verbose_name='Workers', null=True, blank=True)
+
     remark = models.TextField(blank=True, null=True)
     batches = models.ManyToManyField(Batch, blank=True, related_name='entries')
 

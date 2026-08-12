@@ -23,8 +23,11 @@ const otpSchema = z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code.");
 
 document.addEventListener("DOMContentLoaded", () => {
   const modal = document.querySelector("#account-settings-modal");
-  const openButton = document.querySelector("#open-account-settings");
-  if (!modal || !openButton) return;
+  // Two triggers share this class: the desktop content-topbar button and
+  // the mobile-only one in the sidebar's profile section (see base.html) --
+  // both open the same modal, just shown/hidden by breakpoint in CSS.
+  const openButtons = document.querySelectorAll(".open-account-settings-btn");
+  if (!modal || openButtons.length === 0) return;
 
   const changeUsernameUrl = modal.dataset.changeUsernameUrl;
   const changePasswordUrl = modal.dataset.changePasswordUrl;
@@ -303,9 +306,11 @@ document.addEventListener("DOMContentLoaded", () => {
     unlockBodyScroll();
   }
 
-  openButton.addEventListener("click", () => {
-    resetAllSections();
-    openModal();
+  openButtons.forEach((openButton) => {
+    openButton.addEventListener("click", () => {
+      resetAllSections();
+      openModal();
+    });
   });
 
   async function handleCancel() {

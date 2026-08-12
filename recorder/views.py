@@ -19,7 +19,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.mail import send_mail
 from django.core.validators import validate_email
-from django.db.models import Count
+from django.db.models import Count, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -66,6 +66,15 @@ def _fmt_pdf_number(value, suffix=''):
     """Renders an optional numeric Entry field for the PDF table: '—' when
     left blank (None), otherwise the value with the given unit suffix."""
     return '—' if value is None else f'{value}{suffix}'
+
+
+def _format_weight_abbrev(value):
+    """"73.0k" for >=1000, plain "N" otherwise -- decorative stat-card
+    display only (home page's "Total daily weight" card)."""
+    value = float(value)
+    if value >= 1000:
+        return f'{value / 1000:.1f}k'
+    return f'{value:.0f}'
 
 
 def _serial_by_id():
@@ -243,6 +252,17 @@ def home(request):
     entry_count = Entry.objects.count()
     empty_message = 'No matching entries.' if (current_date or current_search) else 'No entries yet.'
 
+    # "Total daily weight" stat card (decorative, per client's explicit ask
+    # to keep this real-data-backed but with a static/decorative sparkline,
+    # not an actual chart) — net_kg_loading_roll is the one Net Kg field
+    # that's always populated (Loading is global/unconditional, see
+    # models.py, unlike per-plant fields which can be null for a given
+    # entry), making it the correct representative daily total.
+    today_total_weight = Entry.objects.filter(date=timezone.localdate()).aggregate(
+        total=Sum('net_kg_loading_roll')
+    )['total'] or Decimal('0')
+    today_total_weight_display = _format_weight_abbrev(today_total_weight)
+
     # Shared query-string suffix (everything but "page") for the First/Prev/
     # Next/Last pagination links below, built once here rather than repeated
     # inline in the template 4x — each link just does "?page=N{{ pagination_qs }}".
@@ -264,6 +284,8 @@ def home(request):
         "entry_count": entry_count,
         "empty_message": empty_message,
         "pagination_qs": pagination_qs,
+        "today_total_weight": today_total_weight,
+        "today_total_weight_display": today_total_weight_display,
     })
 
 
@@ -492,7 +514,7 @@ def download_entries_pdf(request):
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=landscape(A4), title='Truck Loading Entries',
-        leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=16 * mm,
+        leftMargin=12 * mm, rightMargin=12 * mm, topMargin=14 * mm, bottomMargin=14 * mm,
     )
     styles = getSampleStyleSheet()
     # Plain strings don't wrap inside a Table cell, and these headers are too
@@ -508,6 +530,19 @@ def download_entries_pdf(request):
         'PdfTableBody', parent=styles['Normal'], fontName='Helvetica', fontSize=8, leading=10, alignment=TA_LEFT,
     )
 
+    # S.No/Date/every numeric plant field are wrapped in this Paragraph style
+    # rather than passed as plain strings -- plain strings in a ReportLab
+    # Table cell never wrap, they just overflow straight into the next
+    # column with no visible gap (the multi-plant table's 15 numeric columns
+    # are narrow enough that a value like "16422.00 kg" would otherwise
+    # overlap its neighbor). A Paragraph instead wraps onto a second line and
+    # grows the row's height, which keeps every value legible and separated
+    # no matter how tight a column gets, at the cost of a taller row on the
+    # rare value that doesn't fit on one line.
+    numeric_style = ParagraphStyle(
+        'PdfTableNumeric', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, leading=9, alignment=TA_CENTER,
+    )
+
     # The company letterhead heading shown at the top of every exported PDF
     # regardless of scope.
     company_style = ParagraphStyle(
@@ -515,16 +550,52 @@ def download_entries_pdf(request):
     )
 
     # This header tuple's length/order must stay in lockstep with the
-    # colWidths list passed to Table() below (9 entries each, position-for-
-    # position) — reportlab raises if their lengths mismatch, so a column
-    # added to only one of them fails loudly at PDF-build time rather than
-    # silently misrendering, but check both together if you touch either.
-    rows = [[
-        Paragraph(text, header_style) for text in (
-            'S.No', 'Date', 'Vehicle Number', 'Loading/Roll', 'Net Kg (Loading/Roll)',
-            'Weight/Roll', 'Net Kg (Weight/Roll)', 'Workers', 'Remark',
-        )
-    ]]
+    # colWidths list passed to Table() below (16 entries each, position-for-
+    # position) and with the group-header SPANs in the TableStyle further
+    # down — reportlab raises if the header/colWidths lengths mismatch, so a
+    # column added to only one of them fails loudly at PDF-build time rather
+    # than silently misrendering, but check all three together if you touch
+    # any of them. Two physical header rows: row 0 carries S.No/Date/Vehicle
+    # Number/Loading's 3 columns/Remark (all vertically SPANned into row 1,
+    # same as S.No/Date/etc — Loading is NOT a spanning sub-group like the
+    # plants) plus the three plant group names (horizontally SPANned across
+    # their 3 columns each); row 1 carries the 9 per-plant sub-headers.
+    # Loading/Roll, Net Kg (L/R), and Workers (L/R) are plain standalone
+    # columns next to Vehicle Number, not grouped under a "Loading" header,
+    # because loading is global (rolls from every active plant mix together
+    # before loading, so there's one shared loading count, not a per-plant
+    # one) — visually it belongs at the same level as Date/Vehicle Number,
+    # not alongside the three real per-plant groups. Plant 5/6/Warp Plant
+    # each only track their own packing/weighing stage (Weight/Roll, Net Kg
+    # (W/R), and that plant's own workers).
+    # Sub-headers use shorter labels ('WR'/'Wrk' instead of
+    # 'Weight/Roll'/'Workers') than the model's own verbose_name -- a single
+    # unbroken word like "Workers" has no space for ReportLab's Paragraph to
+    # wrap at, so in a column this narrow it was breaking one letter per
+    # line instead of cleanly onto 2 lines. The abbreviation mirrors 'Net Kg
+    # (L/R)'/'Net Kg (W/R)' immediately beside it, so WR still reads as
+    # "the W/R roll count" in context.
+    rows = [
+        [
+            Paragraph(text, header_style) for text in (
+                'S. No', 'Date', 'Vehicle Number',
+                'LR', 'Net Kg (L/R)', 'Wrk',
+                'Plant 5', '', '',
+                'Plant 6', '', '',
+                'Warp Plant', '', '',
+                'Remark',
+            )
+        ],
+        [
+            Paragraph(text, header_style) for text in (
+                '', '', '', '', '', '',
+                'WR', 'Net Kg (W/R)', 'Wrk',
+                'WR', 'Net Kg (W/R)', 'Wrk',
+                'WR', 'Net Kg (W/R)', 'Wrk',
+                '',
+            )
+        ],
+    ]
     if scope == 'range':
         # This scope's S.No mirrors the range button's own label (101-200 ->
         # S.No 101..200) rather than each entry's real app serial_number — a
@@ -548,69 +619,125 @@ def download_entries_pdf(request):
         serial_by_id = _serial_by_id()
         sno_source = ((serial_by_id[entry.id], entry) for entry in entries)
 
-    total_loading_roll = Decimal('0')
-    total_net_kg_loading_roll = Decimal('0')
-    total_weight_roll = Decimal('0')
-    total_net_kg_weight_roll = Decimal('0')
+    # Running totals: 2 for the global Loading group (loading_roll,
+    # net_kg_loading_roll) + 2 per plant (weight_roll, net_kg_weight_roll)
+    # x3 plants = 8 total. Workers is deliberately never totaled, for
+    # Loading or any plant, consistent with this column's original behavior.
+    loading_totals = {'loading_roll': Decimal('0'), 'net_kg_loading_roll': Decimal('0')}
+    plant_totals = {
+        plant: {'weight_roll': Decimal('0'), 'net_kg_weight_roll': Decimal('0')}
+        for plant in ('plant5', 'plant6', 'warp')
+    }
 
     for sno, entry in sno_source:
-        total_loading_roll += entry.loading_roll or Decimal('0')
-        total_net_kg_loading_roll += entry.net_kg_loading_roll or Decimal('0')
-        total_weight_roll += entry.weight_roll or Decimal('0')
-        total_net_kg_weight_roll += entry.net_kg_weight_roll or Decimal('0')
-        rows.append([
-            str(sno),
-            entry.date.strftime('%d-%m-%Y'),
+        loading_totals['loading_roll'] += entry.loading_roll or Decimal('0')
+        loading_totals['net_kg_loading_roll'] += entry.net_kg_loading_roll or Decimal('0')
+
+        row = [
+            Paragraph(str(sno), numeric_style),
+            Paragraph(entry.date.strftime('%d-%m-%Y'), numeric_style),
             # vehicle_number is now free text up to 100 chars (a phrase, for
             # trucks that don't report a number) rather than a short plate
             # code, so it's wrapped in a Paragraph like remark below --
             # escaped the same way, for the same reason.
             Paragraph(xml_escape(entry.vehicle_number) if entry.vehicle_number else '—', body_style),
-            _fmt_pdf_number(entry.loading_roll),
-            _fmt_pdf_number(entry.net_kg_loading_roll, ' kg'),
-            _fmt_pdf_number(entry.weight_roll),
-            _fmt_pdf_number(entry.net_kg_weight_roll, ' kg'),
-            _fmt_pdf_number(entry.workers),
-            # remark is free text (EntryForm has no character restriction) and
-            # Paragraph() interprets a small XML-like markup language rather
-            # than plain text (<b>, <font color=...>, <a href=...>, etc.) --
-            # escaped first so a literal '&'/'<' in a remark can't break PDF
-            # generation or be interpreted as real markup/hyperlinks.
-            Paragraph(xml_escape(entry.remark) if entry.remark else '—', body_style),
-        ])
+            Paragraph(_fmt_pdf_number(entry.loading_roll), numeric_style),
+            Paragraph(_fmt_pdf_number(entry.net_kg_loading_roll, ' kg'), numeric_style),
+            Paragraph(_fmt_pdf_number(entry.workers), numeric_style),
+        ]
+        for plant in ('plant5', 'plant6', 'warp'):
+            weight_roll = getattr(entry, f'{plant}_weight_roll')
+            net_kg_weight_roll = getattr(entry, f'{plant}_net_kg_weight_roll')
+            workers = getattr(entry, f'{plant}_workers')
+
+            plant_totals[plant]['weight_roll'] += weight_roll or Decimal('0')
+            plant_totals[plant]['net_kg_weight_roll'] += net_kg_weight_roll or Decimal('0')
+
+            row.extend([
+                Paragraph(_fmt_pdf_number(weight_roll), numeric_style),
+                Paragraph(_fmt_pdf_number(net_kg_weight_roll, ' kg'), numeric_style),
+                Paragraph(_fmt_pdf_number(workers), numeric_style),
+            ])
+        # remark is free text (EntryForm has no character restriction) and
+        # Paragraph() interprets a small XML-like markup language rather
+        # than plain text (<b>, <font color=...>, <a href=...>, etc.) --
+        # escaped first so a literal '&'/'<' in a remark can't break PDF
+        # generation or be interpreted as real markup/hyperlinks.
+        row.append(Paragraph(xml_escape(entry.remark) if entry.remark else '—', body_style))
+        rows.append(row)
 
     # Trailing summary row — S.No/Date/Workers/Remark left blank (a "Total"
     # doesn't have any of those), 'Total' spans the first three columns via
-    # the SPAN style below, and the four roll/net-kg columns are summed
-    # across every exported entry (None values treated as 0, same as
+    # the SPAN style below, and the roll/net-kg columns are summed across
+    # every exported entry (None values treated as 0, same as
     # _fmt_pdf_number already renders a bare None as '—' per-row).
     # 'Total' must go in the span's *first* cell (index 0, not 1 or 2) —
     # ReportLab only renders the top-left cell's content across a SPAN and
     # silently drops whatever's in the other spanned cells.
     total_row_index = len(rows)
-    rows.append([
+    total_row = [
         Paragraph('Total', body_style), '', '',
-        _fmt_pdf_number(total_loading_roll),
-        _fmt_pdf_number(total_net_kg_loading_roll, ' kg'),
-        _fmt_pdf_number(total_weight_roll),
-        _fmt_pdf_number(total_net_kg_weight_roll, ' kg'),
-        '', '',
-    ])
+        Paragraph(_fmt_pdf_number(loading_totals['loading_roll']), numeric_style),
+        Paragraph(_fmt_pdf_number(loading_totals['net_kg_loading_roll'], ' kg'), numeric_style),
+        '',
+    ]
+    for plant in ('plant5', 'plant6', 'warp'):
+        totals = plant_totals[plant]
+        total_row.extend([
+            Paragraph(_fmt_pdf_number(totals['weight_roll']), numeric_style),
+            Paragraph(_fmt_pdf_number(totals['net_kg_weight_roll'], ' kg'), numeric_style),
+            '',
+        ])
+    total_row.append('')
+    rows.append(total_row)
 
-    # Kept in sync with the header tuple above (see its comment) — 9 widths
-    # for the same 9 columns, in the same order.
-    table = Table(rows, repeatRows=1, colWidths=[35, 65, 100, 65, 85, 65, 85, 55, 185])
+    # Kept in sync with the header tuple above (see its comment) — 16 widths
+    # for the same 16 columns, in the same order. Sums to 734pt, under the
+    # ~773pt usable width on landscape A4 with this doc's 12mm margins.
+    # Every cell is now a Paragraph (see numeric_style above), so a value
+    # too wide for its column wraps onto a second line and grows the row
+    # instead of overlapping the next column -- these widths are tuned so
+    # that only unusually large values ever need to wrap. S.No is wide
+    # enough for a 4-digit serial (e.g. a 1000+-row export's '1101'), Date
+    # is wide enough for 'dd-mm-yyyy' on one line (a date has no space to
+    # wrap at, only hyphens, which Paragraph doesn't break on), and Vehicle
+    # Number is wide enough for a ~10-char plate-style value on one line --
+    # all three matter for extract_pdf_serial_numbers()/
+    # extract_pdf_vehicle_numbers() in recorder/tests.py, which identify
+    # rows by matching a *whole* value on one text line; a value split
+    # across two lines silently breaks those heuristics.
+    table = Table(rows, repeatRows=2, colWidths=[
+        36, 54, 80,
+        44, 56, 26,
+        44, 56, 26,
+        44, 56, 26,
+        44, 56, 26,
+        60,
+    ])
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#16233d')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 0), (-1, 1), colors.HexColor('#16233d')),
+        ('TEXTCOLOR', (0, 0), (-1, 1), colors.white),
+        ('FONTNAME', (0, 0), (-1, 1), 'Helvetica-Bold'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('ROWBACKGROUNDS', (0, 2), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        # Header row 0: S.No/Date/Vehicle Number/LR/Net Kg (L/R)/Wrk/Remark
+        # all vertically span both header rows (Loading is a standalone set
+        # of columns, not a spanning sub-group like the plants), and each
+        # plant name horizontally spans its own 3 columns.
+        ('SPAN', (0, 0), (0, 1)),
+        ('SPAN', (1, 0), (1, 1)),
+        ('SPAN', (2, 0), (2, 1)),
+        ('SPAN', (3, 0), (3, 1)),
+        ('SPAN', (4, 0), (4, 1)),
+        ('SPAN', (5, 0), (5, 1)),
+        ('SPAN', (15, 0), (15, 1)),
+        ('SPAN', (6, 0), (8, 0)),
+        ('SPAN', (9, 0), (11, 0)),
+        ('SPAN', (12, 0), (14, 0)),
         # Total row: spans 'Total' across S.No/Date/Vehicle Number, bold,
         # and set off from the data rows with a shaded background + a rule
         # above it rather than blending into the alternating row stripes.

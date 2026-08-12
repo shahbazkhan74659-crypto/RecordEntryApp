@@ -22,7 +22,7 @@
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="remove">
-        {% include "partials/entries_table.html" with entries=grouped_entries show_select=True select_all=False checkbox_name="ids" show_serial=True use_serial_field=False empty_message="No entries in this batch." colspan=10 %}
+        {% include "partials/entries_table.html" with entries=grouped_entries show_select=True select_all=False checkbox_name="ids" show_serial=True use_serial_field=False empty_message="No entries in this batch." colspan=17 %}
         {% if grouped_entries %}
         <button type="submit" class="btn-danger-outline">Remove Selected from Batch</button>
         {% endif %}
@@ -34,7 +34,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add">
                 <h2 class="modal-title">Add Records</h2>
-                {% include "partials/entries_table.html" with entries=available_entries wrapper_class="modal-table-wrapper" show_select=True select_all=False checkbox_name="ids" checkbox_aria_label="Select record" show_serial=False empty_message="No ungrouped entries available." colspan=9 %}
+                {% include "partials/entries_table.html" with entries=available_entries wrapper_class="modal-table-wrapper" show_select=True select_all=False checkbox_name="ids" checkbox_aria_label="Select record" show_serial=False empty_message="No ungrouped entries available." colspan=16 %}
                 <div class="modal-actions">
                     <button type="button" id="add-records-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
                     <button type="submit" class="modal-btn modal-btn-primary">Done</button>
