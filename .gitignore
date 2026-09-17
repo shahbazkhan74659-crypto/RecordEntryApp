@@ -10,3 +10,6 @@ db_backups/
 node_modules/
 static/js/dist/
 staticfiles/
+
+.vercel
+.env*

@@ -44,6 +44,19 @@ RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
+# Vercel injects both of these automatically on every deploy -- same
+# zero-manual-config pattern as RENDER_EXTERNAL_HOSTNAME above.
+# VERCEL_URL is the current deployment's own hostname (changes every deploy,
+# including previews); VERCEL_PROJECT_PRODUCTION_URL is the stable assigned
+# production domain (e.g. entryrecorder.vercel.app), which doesn't change
+# between deploys. Neither includes a scheme.
+VERCEL_URL = os.environ.get('VERCEL_URL')
+if VERCEL_URL:
+    ALLOWED_HOSTS.append(VERCEL_URL)
+VERCEL_PROJECT_PRODUCTION_URL = os.environ.get('VERCEL_PROJECT_PRODUCTION_URL')
+if VERCEL_PROJECT_PRODUCTION_URL:
+    ALLOWED_HOSTS.append(VERCEL_PROJECT_PRODUCTION_URL)
+
 
 # Application definition
 
@@ -221,9 +234,9 @@ ANYMAIL['REQUESTS_TIMEOUT'] = int(os.environ.get('EMAIL_TIMEOUT', 10))
 # Production-only transport/cookie hardening
 # Tied to `not DEBUG` (now env-controlled above) rather than always-on, so
 # local dev over plain HTTP (DEBUG=True) isn't broken by cookies/redirects
-# that require HTTPS. Deployment target is Render: its edge proxy terminates
-# TLS and sets X-Forwarded-Proto on every request, so SECURE_PROXY_SSL_HEADER
-# below is safe to trust — this would NOT be safe on a host where an
+# that require HTTPS. Both Render and Vercel's edge terminate TLS and set
+# X-Forwarded-Proto on every request, so SECURE_PROXY_SSL_HEADER below is
+# safe to trust on either — this would NOT be safe on a host where an
 # untrusted party could set that header directly.
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
@@ -241,3 +254,7 @@ SECURE_HSTS_PRELOAD = not DEBUG
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
 if RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
+if VERCEL_URL:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{VERCEL_URL}')
+if VERCEL_PROJECT_PRODUCTION_URL:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{VERCEL_PROJECT_PRODUCTION_URL}')
