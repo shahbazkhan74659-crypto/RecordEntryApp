@@ -1,6 +1,6 @@
 # Entry Recorder (LoadGate)
 
-A single-user web app for logging **Truck Loading Records** — a digital replacement for a manual register used to record trucks being loaded across three physical plants. Live at **[entryrecorder.onrender.com](https://entryrecorder.onrender.com)**.
+A single-user web app for logging **Truck Loading Records** — a digital replacement for a manual register used to record trucks being loaded across three physical plants. Live at **[entryrecorder.vercel.app](https://entryrecorder.vercel.app)**.
 
 ## What this is
 
@@ -16,9 +16,9 @@ Core features:
 
 ## Current status
 
-Deployed and live. Core CRUD, batching, PDF export, authentication (including Forgot Password and Account Settings), and a responsive layout are all built and in production. The codebase has been through a full review pass (refactor, code-quality, security, and mobile-responsiveness audits), with fixes threaded throughout rather than left open.
+Deployed and live on Vercel. Core CRUD, batching, PDF export, authentication (including Forgot Password and Account Settings), and a responsive layout are all built and in production. The codebase has been through a full review pass (refactor, code-quality, security, and mobile-responsiveness audits), with fixes threaded throughout rather than left open.
 
-**Known open item:** transactional OTP emails (Forgot Password, Change Email) work locally and are configured for production, but `SENDGRID_API_KEY`/`DEFAULT_FROM_EMAIL` still need to be added to the live Render service's environment before they'll actually send there.
+**Migrated off Render (2026-09-17):** Render's free tier stopped being viable for this account (usage-based pooling across all free services exhausted it, then the account stayed suspended even after dropping to 2 services), so the app moved to Vercel's card-free Hobby tier instead. The Neon Postgres database is unchanged. SendGrid OTP email is fully configured and working in production.
 
 ## Tech stack
 
@@ -28,8 +28,8 @@ Deployed and live. Core CRUD, batching, PDF export, authentication (including Fo
 | Database | PostgreSQL — Neon in production, local Postgres (or SQLite as a zero-setup fallback) in dev |
 | Frontend | Django templates (server-rendered), vanilla JS bundled via esbuild, Zod for client-side validation |
 | PDF generation | ReportLab (generation), pypdf (test-only, verifying exported PDFs) |
-| Email | `django-anymail` over SendGrid's HTTP API (not raw SMTP — Render doesn't reliably support outbound raw TCP) |
-| Hosting | Render (Gunicorn + WhiteNoise for static files) |
+| Email | `django-anymail` over SendGrid's HTTP API (chosen originally because Render didn't reliably support outbound raw TCP — also just works cleanly as a serverless HTTP call on Vercel) |
+| Hosting | Vercel (zero-config Django support — Vercel Functions + CDN-served static files). Previously Render; `render.yaml`/`build.sh`/`Procfile` are left in the repo but unused. |
 
 ## Project structure
 
@@ -38,9 +38,11 @@ entryrecorder/    Django project settings, root URLs
 recorder/         The app itself — Entry/Batch models, views, forms, migrations, tests
 templates/        Django templates (pages + partials/modals)
 static/js/src/    Source JS (bundled to static/js/dist/ via esbuild — gitignored build output)
-build.sh          Render build step: pip install, npm build, collectstatic, migrate, superuser bootstrap
-render.yaml       Render Blueprint (web service config)
-Procfile          Gunicorn start command
+vercel.json       Vercel service config (build command, function timeout)
+vercel_build.sh   Vercel build step: npm build, migrate, superuser bootstrap (collectstatic runs automatically)
+build.sh          Old Render build step — unused now, kept for reference
+render.yaml       Old Render Blueprint — unused now, kept for reference
+Procfile          Old Gunicorn start command — unused now (Vercel runs the WSGI app directly)
 ```
 
 ## Getting started
